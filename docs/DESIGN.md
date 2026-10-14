@@ -196,7 +196,7 @@ SDF の箱は **裏面だけ** を描く (表面をカリング)。 カメラが
 | 番号 | 種類 | 中身 |
 | --- | --- | --- |
 | 0 | 定数バッファビュー (`b0`) | エンジンのシーンの定数 (`SceneConstants`: カメラとライト)。 エンジンが毎フレーム書いたものを、 そのまま読む |
-| 1 | 32 bit 定数 (`b1`) | 氷ごとの値: `Material` (`BaseColor` (float4), `Metallic`, `Roughness`, `Specular`)、 `Position` (`RenderEntity` の位置)、 SDF の値 (`RefractiveIndex`, `AbsorptionColor`, `BubbleDensity`, `BoundsMin`, `BoundsMax`) |
+| 1 | 32 bit 定数 (`b1`) | 氷ごとの値: `Material` (`BaseColor` (float4), `Metallic`, `Roughness`, `Specular`)、 `Position` (`RenderEntity` の位置)、 SDF の値 (`RefractiveIndex`, `Absorption` (吸収の色から CPU で求めた σa), `BubbleDensity`, `BoundsMin`, `BoundsMax`, `VoxelSize`) |
 | 2 | デスクリプターテーブル (`t0`) | SDF の 3D テクスチャ |
 | 静的サンプラー (`s0`) | 線形、 端で止める | |
 

@@ -9,6 +9,7 @@
 #include "engine/DxCheck.h"
 #include "engine/ShaderCompiler.h"
 
+#include <cmath>
 #include <cstdio>
 #include <stdexcept>
 #include <utility>
@@ -17,20 +18,22 @@ using Microsoft::WRL::ComPtr;
 
 namespace {
 
-// IceCommon.hlsli の cbuffer IceObject (b1) と同じ並び。 氷ごとの値 (32 bit × 20 個)。
+// IceCommon.hlsli の cbuffer IceObject (b1) と同じ並び。 氷ごとの値 (32 bit × 24 個)。
 // HLSL の定数は 16 バイト (float 4 個) ずつに区切られるので、 float3 の後には float を 1 つ置く。
 // Material は float4 + float 3 個 = 28 バイトなので、 float を 1 つ足して 32 バイトにそろえる
 struct IceObjectConstants {
     Material material;  // [0] baseColor  [1] metallic roughness specular
     float pad0;         // [1] w
     Float3 position;    // [2] 氷の位置 (ワールド)
-    float pad1;         // [2] w
+    float refractiveIndex;  // [2] w 屈折率
     Float3 boundsMin;   // [3] SDF の格子が覆う箱の最小の角 (物体の空間)
     float voxelSize;    // [3] w 格子 1 つ分の大きさ
     Float3 boundsMax;   // [4] 同じく最大の角
     float pad2;         // [4] w
+    Float3 absorption;  // [5] 吸収の係数 σa (1/m)。 吸収の色から CPU で計算する
+    float pad3;         // [5] w
 };
-static_assert(sizeof(IceObjectConstants) == 20 * 4, "IceObjectConstants must be twenty 32-bit values");
+static_assert(sizeof(IceObjectConstants) == 24 * 4, "IceObjectConstants must be twenty-four 32-bit values");
 
 // ルート引数の番号
 constexpr UINT kRootScene = 0;   // b0: エンジンのシーンの定数 (カメラとライト)
@@ -224,6 +227,10 @@ void IceImplement::draw3D(const DrawContext& context, const Float3& position)
     object.boundsMin = geom.boundsMin;
     object.boundsMax = geom.boundsMax;
     object.voxelSize = geom.voxelSize;
+    object.refractiveIndex = mParams.refractiveIndex;
+    // 吸収の係数 σa = −ln(色) / 1 m。 Beer–Lambert の法則 T = exp(−σa × 厚さ) で、 厚さ 1 m のとき T = 色 になる
+    const Float3& c = mParams.absorptionColor;
+    object.absorption = { -std::log(c.x), -std::log(c.y), -std::log(c.z) };
 
     // 4. 氷のパイプラインに切り替えて描く。 描画先・ビューポート・シザーはエンジンが設定済み
     commandList->SetGraphicsRootSignature(mRootSignature.Get());

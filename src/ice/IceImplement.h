@@ -58,6 +58,10 @@ struct IceParams {
 
     // プリミティブの質感。 初めは淡い水色、 金属でない、 少しつるつる
     Material material = { { 0.70f, 0.85f, 0.95f, 1.0f }, 0.0f, 0.3f, 0.5f };
+
+    // SDF の氷
+    float refractiveIndex = 1.31f;                   // 氷の屈折率
+    Float3 absorptionColor = { 0.45f, 0.75f, 0.90f };  // 厚さ 1 m を通った白がこの色になる (本物より強め)
 };
 
 class IceImplement {
