@@ -25,25 +25,94 @@ SDF (符号付き距離場) で形を表した透明な氷の塊を、 DirectX 1
 
 ```
 Test/
-├── CMakeLists.txt        … ビルド設定 (Windows / MSVC)
-├── src/main.cpp          … ウィンドウと DirectX 12 の準備・毎フレームの描画
-├── shaders/ice.hlsl      … 全画面三角形の頂点シェーダーと、 光線を追うピクセルシェーダー
-└── docs/                 … この設計と、 要素ごとの解説
+├── CMakeLists.txt              … ビルド設定 (Windows / MSVC)
+├── src/
+│   ├── main.cpp                … 入口。 Application を作って回し、 例外を表示するだけ
+│   ├── Application.h / .cpp    … 部品をつなぐ。 入力 → カメラ、 毎フレームの更新と描画
+│   ├── Window.h / .cpp         … Win32 のウィンドウ、 メッセージ、 マウスとキーの受け取り
+│   ├── OrbitCamera.h / .cpp    … 注視点の周りを回るカメラ (角度と距離)
+│   ├── Renderer.h / .cpp       … 1 フレームの命令を記録して実行する
+│   ├── GraphicsDevice.h / .cpp … デバイス・コマンドキュー・フェンス (GPU との同期)
+│   ├── SwapChain.h / .cpp      … スワップチェーンとバックバッファの RTV
+│   ├── IcePipeline.h / .cpp    … ルートシグネチャ・シェーダーのコンパイル・PSO
+│   └── DxCheck.h               … HRESULT の失敗を例外にする
+├── shaders/
+│   ├── ice.hlsl                … 入口 (VSMain / PSMain) とカメラの光線
+│   ├── Common.hlsli            … 定数 (cbuffer)・回転・表示用の変換
+│   ├── Sky.hlsli               … 空と太陽
+│   ├── IceShape.hlsli          … 氷の SDF・球追跡・法線
+│   ├── IceMaterial.hlsli       … 氷の値 (屈折率・吸収・Fresnel・気泡)
+│   ├── Scene.hlsli             … 床と球 (不透明な物) とその照明・影
+│   └── IceOptics.hlsli         … 反射・屈折・吸収・全反射で光線を追う
+└── docs/                       … この設計と、 要素ごとの解説
 ```
 
 描画は **画面全体を覆う三角形を 1 枚描くだけ** で、 絵はすべてピクセルシェーダーが作る。
 頂点バッファ・インデックスバッファ・テクスチャ・深度バッファは使わない。
 
-### CPU 側 (`src/main.cpp`)
+### CPU 側 (`src/`)
+
+1 クラス 1 ファイル (`.h` と `.cpp`)。 クラスの持ち方は次の通り。
+
+```mermaid
+classDiagram
+    direction LR
+    class Application {
+        +Run() int
+    }
+    class Window {
+        +ProcessMessages() bool
+        +Handle() HWND
+    }
+    class OrbitCamera {
+        +Rotate(dx, dy)
+        +Zoom(steps)
+        +Update(dt)
+    }
+    class Renderer {
+        +Render(IceConstants)
+        +Resize(w, h)
+        +ReloadShaders()
+    }
+    class GraphicsDevice {
+        +Execute(list)
+        +WaitForGpu()
+    }
+    class SwapChain {
+        +CurrentBackBuffer()
+        +Present()
+        +Resize(w, h)
+    }
+    class IcePipeline {
+        +Build() bool
+    }
+    Application *-- Window
+    Application *-- OrbitCamera
+    Application *-- Renderer
+    Renderer *-- GraphicsDevice
+    Renderer *-- SwapChain
+    Renderer *-- IcePipeline
+```
+
+| クラス | 責任 | 持たないもの |
+| --- | --- | --- |
+| `Application` | 部品を作ってつなぐ。 入力をカメラへ渡し、 毎フレーム定数を作って描かせる | DirectX 12 の詳細 |
+| `Window` | ウィンドウを作り、 メッセージを処理し、 入力と大きさの変化を関数で知らせる | カメラや描画の知識 |
+| `OrbitCamera` | 角度と距離を持ち、 ドラッグ・ホイール・自動回転で変える | 行列 (光線はシェーダーで作る) |
+| `Renderer` | コマンドアロケーターとコマンドリストを持ち、 1 フレームを記録・実行する | デバイスやスワップチェーンの作り方 |
+| `GraphicsDevice` | デバイス・コマンドキュー・フェンスを作り、 実行と待ちを受け持つ | 描く内容 |
+| `SwapChain` | スワップチェーン・RTV ヒープ・バックバッファを作り、 大きさの変更と Present を受け持つ | 描く内容 |
+| `IcePipeline` | ルートシグネチャとシェーダーと PSO を作る。 読み直しに失敗したら前の PSO を残す | 描く内容 |
 
 | 部品 | 内容 |
 | --- | --- |
-| デバイス | 既定のアダプター、 機能レベル 11_0 |
+| デバイス | 既定のアダプター、 機能レベル 11_0。 Debug ビルドではデバッグレイヤーを有効にする |
 | スワップチェーン | 2 枚、 `R8G8B8A8_UNORM`、 `FLIP_DISCARD` |
 | ルートシグネチャ | 32 bit 定数 8 個 (`b0`) だけ |
 | パイプライン | VS + PS、 頂点入力なし、 深度なし |
 | 同期 | 1 フレームごとにフェンスで GPU を待つ (簡単さ優先) |
-| シェーダー | 実行時に `D3DCompileFromFile` (SM 5.0)。 R キーで読み直す |
+| シェーダー | 実行時に `D3DCompileFromFile` (SM 5.0)。 `#include` は標準のハンドラーで解決。 R キーで読み直す |
+| エラー | `DxCheck.h` の `ThrowIfFailed` が例外にし、 `main.cpp` がメッセージボックスで表示する |
 
 毎フレームの流れ:
 
@@ -74,7 +143,23 @@ Test/
 | R | シェーダーを読み直す |
 | Esc | 終了 |
 
-### GPU 側 (`shaders/ice.hlsl`)
+### GPU 側 (`shaders/`)
+
+ファイルは依存の順に `ice.hlsl` から `#include` する。 後のファイルは前のファイルの関数だけを使う。
+
+```
+Common → Sky → IceShape → IceMaterial → Scene → IceOptics → ice.hlsl
+```
+
+| ファイル | 中身 | 作る要素 |
+| --- | --- | --- |
+| `Common.hlsli` | `cbuffer Constants`、 回転、 トーンマップとガンマ | `feature/dx12-base` |
+| `Sky.hlsli` | 空のグラデーション、 太陽の向き・色・円盤 | `feature/dx12-base`, `feature/scene` |
+| `Scene.hlsli` | 床・球の交差、 照明、 影 | `feature/scene`, `feature/ice-shadow` |
+| `IceShape.hlsli` | 角の丸い箱の SDF、 境界球、 球追跡、 法線 | `feature/ice-sdf` |
+| `IceMaterial.hlsli` | 屈折率、 F0、 吸収係数、 Fresnel、 気泡の密度 | `feature/ice-optics`, `feature/ice-bubbles` |
+| `IceOptics.hlsli` | 中を進む、 1 本の光線を区間ごとに追うループ | `feature/ice-optics`, `feature/ice-bubbles` |
+| `ice.hlsl` | 全画面三角形の VS、 カメラの光線、 PS | `feature/dx12-base` |
 
 画素ごとに光線を 1 本出し、 次の順に追う。
 
