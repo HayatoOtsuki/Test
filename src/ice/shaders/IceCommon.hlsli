@@ -27,11 +27,13 @@ cbuffer IceObject : register(b1)
     float  Specular;     //     金属でない面の、 正面から見た反射の強さ (0.5 で 4%)
     float  ObjectPad0;
     float3 Position;     // [2] 氷の位置 (ワールド)。 物体の空間の点にこれを足すとワールドの点になる
-    float  ObjectPad1;
+    float  RefractiveIndex;  // 屈折率 (氷は 1.31)
     float3 BoundsMin;    // [3] SDF の格子が覆う箱の最小の角 (物体の空間)
     float  VoxelSize;    //     格子 1 つ分の大きさ (メートル)
     float3 BoundsMax;    // [4] 同じく最大の角
     float  ObjectPad2;
+    float3 Absorption;   // [5] 吸収の係数 σa (1/m)。 T = exp(−σa × 厚さ)
+    float  ObjectPad3;
 };
 
 // -----------------------------------------------------------------------------

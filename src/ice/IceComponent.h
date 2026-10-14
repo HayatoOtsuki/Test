@@ -58,6 +58,16 @@ public:
     void setSpecular(float specular);  // 0〜1。 0.5 で 4%
     float getSpecular() const;
 
+    // ---- SDF の氷の値 ----
+
+    // 屈折率 (空気は 1.0、 氷は 1.31)。 1.0〜2.5 に収める。 表面の反射の強さ (F0) もここから決まる
+    void setRefractiveIndex(float n);
+    float getRefractiveIndex() const;
+
+    // 吸収の色: 厚さ 1 m の氷を通った白い光がこの色になる (各 0.01〜1)。 濃いほど (値が小さいほど) よく吸う
+    void setAbsorptionColor(const Float3& color);
+    const Float3& getAbsorptionColor() const;
+
 private:
     // ---- RenderEntity: Renderer だけが呼ぶ。 中身は IceImplement に任せる ----
     void initializeImplement(const RenderSetup& setup) override;
