@@ -7,20 +7,28 @@
 // 背景 (Background.hlsl) が画面に描く色と、 氷のシェーダーが屈折した光線の先に見る色は、
 // どちらもこのファイルの関数で求める。 同じ式なので、 氷越しの景色と周りの景色がつながる。
 // 座標は y が上、 単位はメートル。 床は y = 0 の平面。
+// 太陽の向きと色はシーンの定数 (SceneConstants.hlsli) から読む。 このファイルに数字を書かない。
 // =============================================================================
+
+#ifndef ENVIRONMENT_HLSLI
+#define ENVIRONMENT_HLSLI
+
+#include "SceneConstants.hlsli"
 
 // -----------------------------------------------------------------------------
 // 太陽
 // -----------------------------------------------------------------------------
 
-// 太陽の光の色と強さ。 白より少し黄色寄り。 強さ 1.8 は空の明るさ (0.2〜0.9) との釣り合いで決めた
-static const float3 SUN_COLOR = float3(1.0, 0.95, 0.88) * 1.8;
+// 太陽の光の色 × 強さ。 C++ の DirectionalLight (color × intensity) が毎フレーム届く
+float3 SunColor()
+{
+    return LightColor;
+}
 
-// 太陽のある向き (地面から太陽へ向かう向き、 長さ 1)。
-// 高さ 30° ほど。 初めのカメラから見て奥 (-x, -z の側) にあるので、 氷が逆光で光り、 影は手前に落ちる
+// 太陽のある向き (地面から太陽へ向かう向き、 長さ 1)。 C++ の DirectionalLight.direction が届く
 float3 SunDirection()
 {
-    return normalize(float3(-0.5, 0.45, -0.6));
+    return LightDirection;
 }
 
 // -----------------------------------------------------------------------------
@@ -39,7 +47,7 @@ float3 Sky(float3 rd)
     float3 col = lerp(horizon, zenith, saturate(rd.y * 1.6));
 
     float s = max(dot(rd, SunDirection()), 0.0);  // pow に負の数を渡さないよう 0 で止める
-    return col + SUN_COLOR * (pow(s, 900.0) * 6.0 + pow(s, 10.0) * 0.12);
+    return col + SunColor() * (pow(s, 900.0) * 6.0 + pow(s, 10.0) * 0.12);
 }
 
 // -----------------------------------------------------------------------------
@@ -57,7 +65,7 @@ float3 ShadeFloor(float3 p)
     float checker = frac((floor(p.x * 2.0) + floor(p.z * 2.0)) * 0.5) * 2.0;
     float3 albedo = lerp(float3(0.46, 0.44, 0.40), float3(0.22, 0.23, 0.26), checker);
 
-    float3 sun = SUN_COLOR * saturate(SunDirection().y);
+    float3 sun = SunColor() * saturate(SunDirection().y);
     float3 ambient = float3(0.22, 0.30, 0.42);
     return albedo * (sun + ambient);
 }
@@ -97,3 +105,5 @@ float3 ToDisplay(float3 x)
     x = saturate((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14));
     return pow(x, float3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));
 }
+
+#endif

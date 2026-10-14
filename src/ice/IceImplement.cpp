@@ -17,14 +17,6 @@ using Microsoft::WRL::ComPtr;
 
 namespace {
 
-// IceCommon.hlsli の cbuffer IceFrame (b0) と同じ並び。 フレームごとに変わる値 (32 bit × 20 個)
-struct IceFrameConstants {
-    Float4x4 viewProj;  // ワールド → クリップ空間 (転置済み)
-    Float3 cameraPos;   // カメラの位置
-    float time;         // 起動からの秒
-};
-static_assert(sizeof(IceFrameConstants) == 20 * 4, "IceFrameConstants must be twenty 32-bit values");
-
 // IceCommon.hlsli の cbuffer IceObject (b1) と同じ並び。 氷ごとの値 (32 bit × 12 個)。
 // HLSL の定数は 16 バイト (float 4 個) ずつに区切られるので、 float3 の後に float を 1 つ置いて区切りに合わせる
 struct IceObjectConstants {
@@ -38,7 +30,7 @@ struct IceObjectConstants {
 static_assert(sizeof(IceObjectConstants) == 12 * 4, "IceObjectConstants must be twelve 32-bit values");
 
 // ルート引数の番号
-constexpr UINT kRootFrame = 0;   // b0: IceFrameConstants
+constexpr UINT kRootScene = 0;   // b0: エンジンのシーンの定数 (カメラとライト)
 constexpr UINT kRootObject = 1;  // b1: IceObjectConstants
 
 } // namespace
@@ -60,14 +52,13 @@ void IceImplement::initialize(const RenderSetup& setup)
 
 void IceImplement::createRootSignature()
 {
-    // ルート引数 (シェーダーへ渡す物の一覧) は 2 つ。 どちらも 32 bit 定数を直接置く (定数バッファを作らない)
-    //   0: b0 IceFrame  — カメラなど、 フレームごとの値
-    //   1: b1 IceObject — 位置など、 氷ごとの値
+    // ルート引数 (シェーダーへ渡す物の一覧) は 2 つ:
+    //   0: b0 シーンの定数 — カメラとライト。 エンジンが毎フレーム書いた定数バッファを、 そのまま結び付ける (CBV)
+    //   1: b1 IceObject   — 位置など、 氷ごとの値。 32 bit 定数を直接置く (定数バッファを作らない)
     D3D12_ROOT_PARAMETER params[2] = {};
-    params[kRootFrame].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    params[kRootFrame].Constants.ShaderRegister = 0;
-    params[kRootFrame].Constants.Num32BitValues = sizeof(IceFrameConstants) / 4;
-    params[kRootFrame].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;  // 頂点とピクセルの両方で使う
+    params[kRootScene].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[kRootScene].Descriptor.ShaderRegister = 0;
+    params[kRootScene].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;  // 頂点とピクセルの両方で使う
 
     params[kRootObject].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     params[kRootObject].Constants.ShaderRegister = 1;
@@ -176,8 +167,7 @@ void IceImplement::draw3D(const DrawContext& context)
     // 2. 今の形を選ぶ。 形の種類がそのまま mGeom の添え字になる
     const IceGeometry& geom = mGeom[static_cast<int>(mParams.shape)];
 
-    // 3. シェーダーへ渡す値
-    const IceFrameConstants frame = { context.viewProj, context.cameraPos, context.time };
+    // 3. 氷ごとの値 (カメラとライトはエンジンのシーンの定数をそのまま使う)
     IceObjectConstants object = {};
     object.position = mParams.position;
     object.metallic = mParams.metallic;
@@ -189,7 +179,7 @@ void IceImplement::draw3D(const DrawContext& context)
     //    描画先・ビューポート・シザーはエンジン (Renderer::beginFrame) が設定済み
     commandList->SetGraphicsRootSignature(mRootSignature.Get());
     commandList->SetPipelineState(mMeshPipeline.Get());
-    commandList->SetGraphicsRoot32BitConstants(kRootFrame, sizeof(frame) / 4, &frame, 0);
+    commandList->SetGraphicsRootConstantBufferView(kRootScene, context.sceneConstants);
     commandList->SetGraphicsRoot32BitConstants(kRootObject, sizeof(object) / 4, &object, 0);
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->IASetVertexBuffers(0, 1, &geom.vertexView);

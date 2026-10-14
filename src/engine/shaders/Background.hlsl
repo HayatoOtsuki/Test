@@ -5,15 +5,9 @@
 //   PSMain: 画素ごとにカメラからの光線を作り、 その先の色 (Environment) を塗る
 // =============================================================================
 
+// カメラ (InvViewProj, CameraPos) とライトは、 シーンの定数 (b0) から読む。
+// Environment.hlsli が SceneConstants.hlsli を #include している
 #include "Environment.hlsli"
-
-// CPU 側の BackgroundConstants (BackgroundPass.cpp) と同じ並び
-cbuffer BackgroundConstants : register(b0)
-{
-    float4x4 InvViewProj;  // クリップ空間 → ワールド (CPU で転置済み)
-    float3   CameraPos;    // カメラの位置 (ワールド)
-    float    Time;         // 起動からの秒
-};
 
 struct VSOutput
 {

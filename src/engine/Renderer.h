@@ -9,6 +9,7 @@
 // =============================================================================
 
 #include "BackgroundPass.h"
+#include "DirectionalLight.h"
 #include "DepthBuffer.h"
 #include "DrawContext.h"
 #include "GraphicsDevice.h"
@@ -37,8 +38,8 @@ public:
     // 登録を外す (描く物が壊れる前に呼ぶ)
     void removeEntity(RenderEntity* entity);
 
-    // 1 フレーム描いて表示する
-    void renderFrame(const OrbitCamera& camera, float time);
+    // 1 フレーム描いて表示する。 カメラとライトはシーンの定数バッファに書いて、 全部のシェーダーへ渡す
+    void renderFrame(const OrbitCamera& camera, const DirectionalLight& light, float time);
 
     // 描画先の大きさを合わせる。 変わっていなければ何もしない
     void resize(UINT width, UINT height);
@@ -47,7 +48,8 @@ public:
     bool reloadShaders(std::string& error);
 
 private:
-    DrawContext beginFrame(const OrbitCamera& camera, float time);
+    DrawContext beginFrame(const OrbitCamera& camera, const DirectionalLight& light, float time);
+    void createSceneConstantBuffer();
     void endFrame();
 
     // リソースの状態を before から after へ移す命令を記録する
@@ -61,4 +63,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mAllocator;      // コマンドを書き込むメモリ
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;  // コマンドを記録する物
     std::vector<RenderEntity*> mEntities;                           // 登録された描く物 (持ち主は登録した側)
+
+    // シーンの定数 (カメラとライト) を入れる定数バッファ。 アップロードヒープに置き、 ずっと Map したまま書く
+    Microsoft::WRL::ComPtr<ID3D12Resource> mSceneBuffer;
+    SceneConstants* mSceneMapped = nullptr;
 };

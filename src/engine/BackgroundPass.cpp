@@ -8,18 +8,6 @@
 
 using Microsoft::WRL::ComPtr;
 
-namespace {
-
-// Background.hlsl の cbuffer BackgroundConstants と同じ並び (32 bit × 20 個)
-struct BackgroundConstants {
-    Float4x4 invViewProj;
-    Float3 cameraPos;
-    float time;
-};
-static_assert(sizeof(BackgroundConstants) == 20 * 4, "BackgroundConstants must be twenty 32-bit values");
-
-} // namespace
-
 BackgroundPass::BackgroundPass(ID3D12Device* device, DXGI_FORMAT colorFormat, DXGI_FORMAT depthFormat,
                                std::wstring shaderPath)
     : mDevice(device), mColorFormat(colorFormat), mDepthFormat(depthFormat), mShaderPath(std::move(shaderPath))
@@ -29,11 +17,10 @@ BackgroundPass::BackgroundPass(ID3D12Device* device, DXGI_FORMAT colorFormat, DX
 
 void BackgroundPass::createRootSignature()
 {
-    // ルート引数は 1 つだけ: 32 bit 定数 20 個を b0 に直接置く (定数バッファのリソースは作らない)
+    // ルート引数は 1 つだけ: シーンの定数バッファ (カメラとライト) を b0 に結び付ける定数バッファビュー
     D3D12_ROOT_PARAMETER param = {};
-    param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    param.Constants.ShaderRegister = 0;
-    param.Constants.Num32BitValues = sizeof(BackgroundConstants) / 4;
+    param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    param.Descriptor.ShaderRegister = 0;
     param.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_ROOT_SIGNATURE_DESC desc = {};
@@ -106,14 +93,11 @@ bool BackgroundPass::build(std::string& error)
     return true;
 }
 
-void BackgroundPass::draw(ID3D12GraphicsCommandList* commandList, const Float4x4& invViewProj, const Float3& cameraPos,
-                          float time)
+void BackgroundPass::draw(ID3D12GraphicsCommandList* commandList, D3D12_GPU_VIRTUAL_ADDRESS sceneConstants)
 {
-    const BackgroundConstants constants = { invViewProj, cameraPos, time };
-
     commandList->SetPipelineState(mPipelineState.Get());
     commandList->SetGraphicsRootSignature(mRootSignature.Get());
-    commandList->SetGraphicsRoot32BitConstants(0, sizeof(constants) / 4, &constants, 0);
+    commandList->SetGraphicsRootConstantBufferView(0, sceneConstants);
     // 頂点バッファは使わない。 頂点シェーダーが頂点の番号 (0, 1, 2) から全画面の三角形を作る
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->DrawInstanced(3, 1, 0, 0);
