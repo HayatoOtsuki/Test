@@ -3,6 +3,7 @@
 #include "DxCheck.h"
 #include "OrbitCamera.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 Renderer::Renderer(HWND hwnd, UINT width, UINT height, const std::wstring& shaderRoot)
@@ -34,6 +35,30 @@ Renderer::~Renderer()
         mDevice.waitForGpu();
     } catch (...) {
     }
+}
+
+void Renderer::addEntity(RenderEntity* entity)
+{
+    RenderSetup setup;
+    setup.device = mDevice.getDevice();
+    setup.colorFormat = SwapChain::kFormat;
+    setup.depthFormat = DepthBuffer::kFormat;
+    entity->initialize(setup);  // 失敗したら例外が出て、 登録されない
+    mEntities.push_back(entity);
+}
+
+void Renderer::removeEntity(RenderEntity* entity)
+{
+    // GPU が描いている途中の物を外さないよう、 終わるのを待つ
+    mDevice.waitForGpu();
+    mEntities.erase(std::remove(mEntities.begin(), mEntities.end(), entity), mEntities.end());
+}
+
+void Renderer::renderFrame(const OrbitCamera& camera, float time)
+{
+    const DrawContext context = beginFrame(camera, time);  // 背景まで描く
+    for (RenderEntity* entity : mEntities) entity->draw3D(context);
+    endFrame();
 }
 
 DrawContext Renderer::beginFrame(const OrbitCamera& camera, float time)
@@ -102,7 +127,11 @@ bool Renderer::reloadShaders(std::string& error)
 {
     // 使っている途中の PSO を差し替えないよう、 GPU が終えるのを待つ
     mDevice.waitForGpu();
-    return mBackground.build(error);
+    if (!mBackground.build(error)) return false;
+    for (RenderEntity* entity : mEntities) {
+        if (!entity->reloadShaders(error)) return false;
+    }
+    return true;
 }
 
 void Renderer::transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)

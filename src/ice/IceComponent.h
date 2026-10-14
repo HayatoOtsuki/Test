@@ -2,24 +2,21 @@
 // =============================================================================
 // IceComponent.h — 氷の部品の窓口
 //
-// 外 (エンジン) から使うのはこのクラスだけ。
-//   ・initialize : 描く準備 (パイプラインを作る)
-//   ・draw3D     : 毎フレーム呼ぶ。 最初の 1 回で全部の形を作る
+// 外 (ゲームやエンジンの側) から使うのはこのクラスだけ。 持つのは
 //   ・セッター・ゲッター: 形・位置・マテリアルなど、 氷の値を変える / 読む
+//   ・private の mImplement (IceImplement): 描く仕組み (initialize / draw3D / reloadShaders) の全部
 //
-// 実装は IceImplement に任せ、 private の mImplement に持つ。
-// こうすると、 このヘッダーを読む側 (エンジン) は IceImplement の中身 (DirectX 12 の細かい物) を知らなくてよい。
+// 作られたときに mImplement を Renderer に登録する。 以後、 Renderer が毎フレーム mImplement の draw3D を呼ぶので、
+// このクラスは描画の関数を外へ見せない。 読む側は IceImplement の中身 (DirectX 12 の細かい物) を知らなくてよい。
 // =============================================================================
 
-#include "engine/DrawContext.h"
 #include "engine/MathTypes.h"
-
-#include <d3d12.h>
 
 #include <memory>
 #include <string>
 
 class IceImplement;
+class Renderer;
 
 // 氷の形の種類。 mGeom (形の配列) の添え字にもなる
 enum class IceShape {
@@ -31,23 +28,13 @@ enum class IceShape {
 
 class IceComponent {
 public:
-    IceComponent();
-    ~IceComponent();  // IceImplement の中身が要るので .cpp に書く
+    // 氷を作り、 描画 (mImplement) を renderer に登録する。 以後、 renderer が毎フレーム描く。
+    //   shaderDir: 氷のシェーダーのフォルダ (src/ice/shaders)
+    IceComponent(Renderer& renderer, const std::wstring& shaderDir);
+    ~IceComponent();  // renderer から登録を外す。 IceImplement の中身が要るので .cpp に書く
 
     IceComponent(const IceComponent&) = delete;
     IceComponent& operator=(const IceComponent&) = delete;
-
-    // 描く準備。 ルートシグネチャとパイプラインを作る。
-    //   colorFormat / depthFormat: 描画先 (バックバッファと深度バッファ) の形式
-    //   shaderDir                : 氷のシェーダーのフォルダ (src/ice/shaders)
-    void initialize(ID3D12Device* device, DXGI_FORMAT colorFormat, DXGI_FORMAT depthFormat,
-                    const std::wstring& shaderDir);
-
-    // 毎フレーム呼ぶ。 今の形 (getShape) を描く
-    void draw3D(const DrawContext& context);
-
-    // シェーダーを読み直す。 失敗したら false と理由を返し、 前のシェーダーで描き続ける
-    bool reloadShaders(std::string& error);
 
     // ---- セッター・ゲッター ----
 
@@ -78,5 +65,6 @@ public:
     float getSpecular() const;
 
 private:
-    std::unique_ptr<IceImplement> mImplement;
+    Renderer& mRenderer;                       // 登録した先 (外すときに使う)
+    std::unique_ptr<IceImplement> mImplement;  // 描く仕組みの全部
 };

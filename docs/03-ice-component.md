@@ -12,16 +12,23 @@
 ```mermaid
 classDiagram
     direction LR
-    class IceComponent {
-        +initialize()
+    class RenderEntity {
+        <<interface>>
+        +initialize(setup)
         +draw3D(context)
+        +reloadShaders(error)
+    }
+    class IceComponent {
+        +IceComponent(renderer, shaderDir)
         +setShape() / getShape()
         +setPosition() / getPosition()
         +setBaseColor() / setMetallic() / setRoughness() / setSpecular()
         -mImplement : unique_ptr~IceImplement~
     }
     class IceImplement {
+        +initialize(setup)
         +draw3D(context)
+        +reloadShaders(error)
         +getParams() IceParams
         -createRootSignature()
         -buildPipelines()
@@ -29,21 +36,27 @@ classDiagram
         -generateCube() / generateSphere() / generateCylinder()
         -mGeom[IceShape::Count]
     }
+    RenderEntity <|-- IceImplement
     IceComponent *-- IceImplement
 ```
 
 | ファイル | 中身 | なぜ分けるか |
 | --- | --- | --- |
-| `IceComponent.h / .cpp` | 外から使う窓口。 セッター・ゲッター | エンジンが読むのはこのヘッダーだけ。 DirectX 12 の細かい物を見せない |
-| `IceImplement.h / .cpp` | ルートシグネチャ・PSO・`draw3D` | 描く仕組み |
+| `IceComponent.h / .cpp` | 外から使う窓口。 **セッター・ゲッターだけ** | 使う側が読むのはこのヘッダーだけ。 DirectX 12 の細かい物を見せない |
+| `IceImplement.h / .cpp` | `initialize` / `draw3D` / `reloadShaders`、 ルートシグネチャ・PSO | 描く仕組みの全部。 Renderer から呼ばれる |
 | `IceGenerate.cpp` | `generateShape` と各形 | 形づくりは長くなるので、 `IceImplement` のメンバー関数のうち形の分だけを別のファイルに書く |
 
 ### 実装を private に隠す (pImpl)
 
 ```cpp
 class IceComponent {
+public:
+    IceComponent(Renderer& renderer, const std::wstring& shaderDir);
+    ~IceComponent();
+    // セッター・ゲッターだけ
     ...
 private:
+    Renderer& mRenderer;
     std::unique_ptr<IceImplement> mImplement;
 };
 ```
@@ -53,6 +66,45 @@ private:
 - `std::unique_ptr` で持つと、 `IceComponent` が壊れるときに `IceImplement` も自動で壊れる。
 - デストラクターを `.cpp` に書く (`IceComponent::~IceComponent() = default;`) のは、
   `unique_ptr` が `IceImplement` を壊すには `IceImplement` の中身 (完全な型) が要るため。 ヘッダーで書くとコンパイルできない。
+
+### 描画は Renderer から IceImplement へ直接
+
+`IceComponent` は描画の関数 (`draw3D` など) を持たない。 代わりに、 作られたときに `IceImplement` を Renderer に登録する。
+
+```cpp
+IceComponent::IceComponent(Renderer& renderer, const std::wstring& shaderDir)
+    : mRenderer(renderer), mImplement(std::make_unique<IceImplement>(shaderDir))
+{
+    mRenderer.addEntity(mImplement.get());
+}
+
+IceComponent::~IceComponent()
+{
+    mRenderer.removeEntity(mImplement.get());
+}
+```
+
+- `IceImplement` はエンジンの基底クラス `RenderEntity` を継承し、 `initialize` / `draw3D` / `reloadShaders` を **override** する。
+- Renderer は登録された物の一覧を持ち、 登録のときに `initialize`、 毎フレーム背景の後に `draw3D`、 R キーで `reloadShaders` を呼ぶ。
+  Renderer から見えるのは `RenderEntity` (仮想関数の表) だけなので、 氷のことは知らない。
+- 壊すときは、 `mImplement` が壊れる **前に** 一覧から外す。 外さないと、 Renderer が壊れた物を描こうとする。
+- 自分のエンジンでは、 `RenderEntity` と `addEntity` を、 エンジンの 「毎フレーム描く物」 の基底クラスと登録の仕組みに置き換える。
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Ice as IceComponent
+    participant R as Renderer
+    participant Impl as IceImplement
+    App->>Ice: IceComponent(renderer, shaderDir)
+    Ice->>R: addEntity(mImplement)
+    R->>Impl: initialize(setup)
+    loop 毎フレーム
+        App->>Ice: setShape / setRoughness (入力があれば)
+        App->>R: renderFrame(camera, time)
+        R->>Impl: draw3D(context)
+    end
+```
 
 ### セッター・ゲッター
 

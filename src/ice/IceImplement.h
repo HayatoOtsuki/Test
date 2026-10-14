@@ -2,7 +2,10 @@
 // =============================================================================
 // IceImplement.h — 氷の部品の実装
 //
-// IceComponent が private に持つ。 中身は 2 つのファイルに分けてある:
+// IceComponent が private に持ち、 Renderer に登録する。 描く仕組みの関数 (initialize / draw3D / reloadShaders) は
+// すべてこのクラスにある。 RenderEntity (エンジンの 「毎フレーム描く物」 の基底クラス) を継承し、 Renderer から呼ばれる。
+//
+// 中身は 2 つのファイルに分けてある:
 //   IceImplement.cpp : 描く準備 (ルートシグネチャ・パイプライン) と draw3D
 //   IceGenerate.cpp  : 形づくり (generateShape と、 形ごとの generateXxx)
 //
@@ -14,6 +17,7 @@
 
 #include "engine/DrawContext.h"
 #include "engine/MathTypes.h"
+#include "engine/RenderEntity.h"
 
 #include <d3d12.h>
 #include <wrl/client.h>
@@ -50,12 +54,21 @@ struct IceParams {
     float specular = 0.5f;                       // F0 = 0.04
 };
 
-class IceImplement {
+class IceImplement : public RenderEntity {
 public:
-    void initialize(ID3D12Device* device, DXGI_FORMAT colorFormat, DXGI_FORMAT depthFormat,
-                    const std::wstring& shaderDir);
-    void draw3D(const DrawContext& context);
-    bool reloadShaders(std::string& error);
+    // shaderDir: 氷のシェーダーのフォルダ (src/ice/shaders)
+    explicit IceImplement(std::wstring shaderDir);
+
+    // ---- RenderEntity: Renderer から呼ばれる ----
+
+    // 描く準備。 ルートシグネチャとパイプラインを作る (登録のときに 1 回)
+    void initialize(const RenderSetup& setup) override;
+    // 毎フレーム呼ばれる。 最初の 1 回で全部の形を作り、 今の形 (mParams.shape) を描く
+    void draw3D(const DrawContext& context) override;
+    // シェーダーを読み直す。 失敗したら false と理由を返し、 前のシェーダーで描き続ける
+    bool reloadShaders(std::string& error) override;
+
+    // ---- IceComponent のセッター・ゲッターが使う ----
 
     IceParams& getParams() { return mParams; }
     const IceParams& getParams() const { return mParams; }

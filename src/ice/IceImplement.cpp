@@ -11,6 +11,7 @@
 
 #include <cstdio>
 #include <stdexcept>
+#include <utility>
 
 using Microsoft::WRL::ComPtr;
 
@@ -42,13 +43,15 @@ constexpr UINT kRootObject = 1;  // b1: IceObjectConstants
 
 } // namespace
 
-void IceImplement::initialize(ID3D12Device* device, DXGI_FORMAT colorFormat, DXGI_FORMAT depthFormat,
-                              const std::wstring& shaderDir)
+IceImplement::IceImplement(std::wstring shaderDir) : mShaderDir(std::move(shaderDir))
 {
-    mDevice = device;
-    mColorFormat = colorFormat;
-    mDepthFormat = depthFormat;
-    mShaderDir = shaderDir;
+}
+
+void IceImplement::initialize(const RenderSetup& setup)
+{
+    mDevice = setup.device;
+    mColorFormat = setup.colorFormat;
+    mDepthFormat = setup.depthFormat;
 
     createRootSignature();
     std::string error;

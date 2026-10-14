@@ -1,35 +1,30 @@
 // =============================================================================
 // IceComponent.cpp — 窓口の中身
 //
-// どの関数も IceImplement へ渡すだけ。 セッター・ゲッターは IceImplement の値 (IceParams) を読み書きする。
+// 作るときに IceImplement を Renderer に登録し、 壊すときに外す。
+// セッター・ゲッターは IceImplement の値 (IceParams) を読み書きする。
 // =============================================================================
 
 #include "IceComponent.h"
 
 #include "IceImplement.h"
 
+#include "engine/Renderer.h"
+
 #include <algorithm>
 
-IceComponent::IceComponent() : mImplement(std::make_unique<IceImplement>())
+IceComponent::IceComponent(Renderer& renderer, const std::wstring& shaderDir)
+    : mRenderer(renderer), mImplement(std::make_unique<IceImplement>(shaderDir))
 {
+    // 登録すると、 renderer が mImplement の initialize (パイプラインを作る) を呼び、
+    // 以後、 毎フレーム draw3D を呼ぶ
+    mRenderer.addEntity(mImplement.get());
 }
 
-IceComponent::~IceComponent() = default;
-
-void IceComponent::initialize(ID3D12Device* device, DXGI_FORMAT colorFormat, DXGI_FORMAT depthFormat,
-                              const std::wstring& shaderDir)
+IceComponent::~IceComponent()
 {
-    mImplement->initialize(device, colorFormat, depthFormat, shaderDir);
-}
-
-void IceComponent::draw3D(const DrawContext& context)
-{
-    mImplement->draw3D(context);
-}
-
-bool IceComponent::reloadShaders(std::string& error)
-{
-    return mImplement->reloadShaders(error);
+    // mImplement が壊れる前に、 renderer の一覧から外す (外さないと壊れた物を描こうとする)
+    mRenderer.removeEntity(mImplement.get());
 }
 
 void IceComponent::setShape(IceShape shape)
