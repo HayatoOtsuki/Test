@@ -90,6 +90,10 @@ void Application::onKeyDown(WPARAM key)
     // 太陽を回す: J で左回り、 L で右回り。 値は毎フレーム シーンの定数へ書かれ、 背景とプリミティブの両方に届く
     case 'J': mSun.direction = rotateY(mSun.direction, kSunTurnStep); break;
     case 'L': mSun.direction = rotateY(mSun.direction, -kSunTurnStep); break;
+    // 氷を試す: B で気泡 (芯の白い濁り) を入れる・抜く
+    case 'B':
+        mIce.setBubbleDensity(mIce.getBubbleDensity() > 0.0f ? 0.0f : 5.0f);
+        break;
     // マテリアルを試す: M で金属かどうか、 [ ] で粗さ、 , . で鏡面反射の強さ
     case 'M':
         mIce.setMetallic(mIce.getMetallic() < 0.5f ? 1.0f : 0.0f);

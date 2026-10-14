@@ -5,7 +5,8 @@
 //   PSMain: 箱が映る画素ごとに、 カメラからの光線で箱の中の SDF を球追跡し、 氷の表面を探す。
 //           当たれば、 光線を反射・屈折させながら氷の中と外を追う。 当たらなければ捨てる (discard)
 //
-// 解説: docs/05-generate-sdf.md (SDF と球追跡)、 docs/06-ice-optics.md (反射・屈折・吸収・全反射)
+// 解説: docs/05-generate-sdf.md (SDF と球追跡)、 docs/06-ice-optics.md (反射・屈折・吸収・全反射)、
+//       docs/07-ice-bubbles.md (気泡)
 // =============================================================================
 
 #include "IceCommon.hlsli"
@@ -125,20 +126,50 @@ float FresnelDielectric(float cosTheta, float F0)
     return F0 + (1.0 - F0) * pow(1.0 - saturate(cosTheta), 5.0);
 }
 
-// 氷の中の点 ro から向き rd へ進み、 外へ出るまでの距離を返す。
+// ---- 気泡 (芯の白い濁り) ----
+
+// 点 p (物体の空間)、 表面からの深さ depth (メートル) での気泡の密度 (1/m)。
+// 冷凍庫の氷は外側から凍り、 溶けていた空気が最後に凍る芯に集まる。 だから 「表面から 10 cm より深い所」 だけに気泡を置く。
+// 深さ 10〜22 cm でなめらかに増やし、 正弦波を掛けた模様で、 均一でない (筋やむらのある) 濁りにする
+float BubbleDensityAt(float3 p, float depth)
+{
+    float core = smoothstep(0.10, 0.22, depth);
+    float pattern = 0.55 + 0.45 * sin(p.x * 37.0) * sin(p.y * 41.0 + 1.7) * sin(p.z * 39.0 + 0.6);
+    return BubbleDensity * core * pattern;
+}
+
+// 気泡に当たって散らばる光の明るさ。 中の気泡は、 周りから入ってきた光 (空と太陽) にぼんやり照らされている
+float3 BubbleLight()
+{
+    return SunColor() * 0.25 + float3(0.35, 0.42, 0.55);
+}
+
+// 氷の中の点 ro から向き rd へ進み、 外へ出るまでの距離を返す。 途中で
+//   ・気泡が散らばらせた光を col に足し (散乱)、 気泡で遮られた分 thr を減らす
+//   ・進んだ長さだけ吸収する (Beer–Lambert)
 // 中では SDF が負 (−φ = 表面までの距離)。 その距離ずつ進んでも表面を越えないが、 出口に近づくほど 1 歩が小さくなるので、
 // 下限 (格子の半分) を付けて進み、 外 (φ > 0) に出たら、 中の点と外の点の間を 2 分探索して出口を絞る
-float MarchInside(float3 ro, float3 rd)
+float MarchInside(float3 ro, float3 rd, inout float3 col, inout float3 thr)
 {
-    float tIn = 0.0;  // 中だと分かっている t
+    float tIn = 0.0;          // 中だと分かっている t
     float t = 0.0;
+    float bubbleT = 1.0;      // 気泡に遮られずに残っている割合
     [loop]
     for (int i = 0; i < 96; ++i) {
-        float d = SampleSdf(ro + rd * t);
+        float3 q = ro + rd * t;
+        float d = SampleSdf(q);
         if (d > 0.0) break;  // 外へ出た
+        // 上限 5 cm: 気泡の濃さの変わり方を拾えるくらいの細かさで進む
+        float s = clamp(-d, VoxelSize * 0.5, 0.05);
+
+        // この 1 歩 (長さ s) で気泡に当たる割合 a = 1 − exp(−密度 × s)。
+        // 当たった光は散らばり、 その一部が目に届く (BubbleLight)。 ここまでの吸収 exp(−σa × t) も掛ける
+        float a = 1.0 - exp(-BubbleDensityAt(q, -d) * s);
+        col += thr * exp(-Absorption * t) * (bubbleT * a) * BubbleLight();
+        bubbleT *= 1.0 - a;
+
         tIn = t;
-        // 上限 5 cm: 中は大きく跳んでもよいが、 後で中身 (気泡など) を足すときに細かく見るため
-        t += clamp(-d, VoxelSize * 0.5, 0.05);
+        t += s;
     }
     // 2 分探索: tIn (中) と t (外) の真ん中が外なら外の側を、 中なら中の側を縮める。 6 回で幅は 1/64
     [loop]
@@ -147,6 +178,8 @@ float MarchInside(float3 ro, float3 rd)
         if (SampleSdf(ro + rd * m) > 0.0) t = m;
         else tIn = m;
     }
+    // 出口までの全部の長さで吸収し、 気泡に遮られた分も減らす
+    thr *= exp(-Absorption * t) * bubbleT;
     return t;
 }
 
@@ -188,9 +221,8 @@ bool ShadeIceSdf(float3 worldPos, out float3 color)
             p -= n * SURFACE_EPS;
             inside = true;
         } else {
-            // ---- 中を出口まで進む。 進んだ長さだけ吸収する (Beer–Lambert) ----
-            float len = MarchInside(p, rd);
-            thr *= exp(-Absorption * len);
+            // ---- 中を出口まで進む。 気泡の散乱を足し、 進んだ長さだけ吸収する ----
+            float len = MarchInside(p, rd, col, thr);
             p += rd * len;
             n = SdfNormal(p);
 
