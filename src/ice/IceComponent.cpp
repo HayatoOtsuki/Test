@@ -148,3 +148,13 @@ const Float3& IceComponent::getAbsorptionColor() const
 {
     return mImplement->getParams().absorptionColor;
 }
+
+void IceComponent::setBubbleDensity(float density)
+{
+    mImplement->getParams().bubbleDensity = std::clamp(density, 0.0f, 50.0f);
+}
+
+float IceComponent::getBubbleDensity() const
+{
+    return mImplement->getParams().bubbleDensity;
+}

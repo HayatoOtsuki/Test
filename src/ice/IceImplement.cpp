@@ -29,7 +29,7 @@ struct IceObjectConstants {
     Float3 boundsMin;   // [3] SDF の格子が覆う箱の最小の角 (物体の空間)
     float voxelSize;    // [3] w 格子 1 つ分の大きさ
     Float3 boundsMax;   // [4] 同じく最大の角
-    float pad2;         // [4] w
+    float bubbleDensity;  // [4] w 気泡の密度 (1/m)
     Float3 absorption;  // [5] 吸収の係数 σa (1/m)。 吸収の色から CPU で計算する
     float pad3;         // [5] w
 };
@@ -228,6 +228,7 @@ void IceImplement::draw3D(const DrawContext& context, const Float3& position)
     object.boundsMax = geom.boundsMax;
     object.voxelSize = geom.voxelSize;
     object.refractiveIndex = mParams.refractiveIndex;
+    object.bubbleDensity = mParams.bubbleDensity;
     // 吸収の係数 σa = −ln(色) / 1 m。 Beer–Lambert の法則 T = exp(−σa × 厚さ) で、 厚さ 1 m のとき T = 色 になる
     const Float3& c = mParams.absorptionColor;
     object.absorption = { -std::log(c.x), -std::log(c.y), -std::log(c.z) };

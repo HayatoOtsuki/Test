@@ -62,6 +62,7 @@ struct IceParams {
     // SDF の氷
     float refractiveIndex = 1.31f;                   // 氷の屈折率
     Float3 absorptionColor = { 0.45f, 0.75f, 0.90f };  // 厚さ 1 m を通った白がこの色になる (本物より強め)
+    float bubbleDensity = 5.0f;                        // 芯の気泡の密度 (1/m)
 };
 
 class IceImplement {

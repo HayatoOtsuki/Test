@@ -31,7 +31,7 @@ cbuffer IceObject : register(b1)
     float3 BoundsMin;    // [3] SDF の格子が覆う箱の最小の角 (物体の空間)
     float  VoxelSize;    //     格子 1 つ分の大きさ (メートル)
     float3 BoundsMax;    // [4] 同じく最大の角
-    float  ObjectPad2;
+    float  BubbleDensity;  // 芯の気泡の密度 (1/m)。 0 で澄んだ氷
     float3 Absorption;   // [5] 吸収の係数 σa (1/m)。 T = exp(−σa × 厚さ)
     float  ObjectPad3;
 };
