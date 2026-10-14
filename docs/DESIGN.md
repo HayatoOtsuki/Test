@@ -60,7 +60,9 @@ Test/
 │       └── shaders/
 │           ├── IceCommon.hlsli    … 氷ごとの定数 (b1)・氷の値・Fresnel
 │           ├── IceMesh.hlsl       … プリミティブ (メッシュ) の面。 金属・粗さの PBR
-│           └── IceSdf.hlsl        … SDF の氷 (箱の中をレイマーチ)
+│           ├── IceSdfCommon.hlsli … SDF を読む・光線と箱・球追跡・気泡の密度 (IceSdf と IceShadow で共有)
+│           ├── IceSdf.hlsl        … SDF の氷 (箱の中をレイマーチ、 光学)
+│           └── IceShadow.hlsl     … SDF の氷の色付きの影 (床を描き直す)
 └── docs/
     ├── DESIGN.md                  … この設計
     ├── 01-…08-*.md                … 要素ごとの解説 (コードと計算・アルゴリズムの説明)
@@ -231,7 +233,7 @@ flowchart TD
 | 気泡 | 表面から 10 cm より深い所に密度を置き、 散乱した光を足す |
 | 出る | `refract(d, -n, 屈折率)`。 0 が返れば全反射 |
 | 環境 | 外へ出た光線の先の空と床 (エンジンの `Environment.hlsli`) |
-| 影 | 氷の部品が床に影の四角形を描き、 太陽への光線が SDF の中を通った長さで色付ける |
+| 影 | 氷の部品が影の落ちうる床の四角形を描き (`IceShadow.hlsl`)、 床の点から太陽へ SDF を追って、 中を通った長さで太陽の光を減らした床を描き直す |
 
 ### 氷の値 (セッター・ゲッター)
 

@@ -88,8 +88,9 @@ private:
     // ---- IceImplement.cpp: 描く準備 ----
     void createRootSignature();
     bool buildPipelines(std::string& error);
-    // HLSL のファイル 1 つから PSO を 1 つ作る。 cull: カリングする面、 depthWrite: 深度に書くか
-    bool createPipeline(const std::wstring& file, D3D12_CULL_MODE cull, bool depthWrite,
+    // HLSL のファイル 1 つから PSO を 1 つ作る。
+    //   cull: カリングする面、 depthWrite: 深度に書くか、 vertexInput: 頂点バッファを読むか (影は読まない)
+    bool createPipeline(const std::wstring& file, D3D12_CULL_MODE cull, bool depthWrite, bool vertexInput,
                         Microsoft::WRL::ComPtr<ID3D12PipelineState>& pipeline, std::string& error);
 
     // ---- IceGenerate.cpp: 形づくり ----
@@ -110,6 +111,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mMeshPipeline;  // プリミティブ (メッシュ) 用
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSdfPipeline;   // SDF の形用 (箱の中をレイマーチ)
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mShadowPipeline;  // SDF の氷の影 (床を描き直す)
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvHeap;      // SDF の 3D テクスチャの SRV を置くヒープ (シェーダーから見える)
 
     IceGeometry mGeom[static_cast<int>(IceShape::Count)];  // 全部の形
