@@ -189,6 +189,14 @@ feature/*         o-o   o-o   o-o
 - マージは PR で行い、 マージコミットを残す (`--no-ff` 相当)。
 - フェーズの最後に `develop` → `master` の PR を作る。
 
+### Issue とマイルストーン
+
+- フェーズごとにマイルストーンを作る (`Phase 0: 設計` 〜 `Phase 3: 仕上げ`)。
+- 要素ごとに Issue を 1 つ作り、 マイルストーンに入れる。 本文は `.github/ISSUE_TEMPLATE/element.md` (目的・やること・完了の条件)。
+- ラベルは機能が `enhancement`、 文書だけが `documentation`。
+- PR の本文に `Closes #<Issue 番号>` を書く。 既定のブランチは `develop` なので、 `develop` へのマージで Issue が閉じる。
+- フェーズの PR (`develop` → `master`) には、 そのフェーズで閉じた Issue を並べる。
+
 ### コミットメッセージ
 
 [Conventional Commits](https://www.conventionalcommits.org/ja/v1.0.0/) に従う。
