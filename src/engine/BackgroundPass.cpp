@@ -7,14 +7,13 @@
 #include <utility>
 
 using Microsoft::WRL::ComPtr;
-using namespace DirectX;
 
 namespace {
 
 // Background.hlsl の cbuffer BackgroundConstants と同じ並び (32 bit × 20 個)
 struct BackgroundConstants {
-    XMFLOAT4X4 invViewProj;
-    XMFLOAT3 cameraPos;
+    Float4x4 invViewProj;
+    Float3 cameraPos;
     float time;
 };
 static_assert(sizeof(BackgroundConstants) == 20 * 4, "BackgroundConstants must be twenty 32-bit values");
@@ -107,8 +106,8 @@ bool BackgroundPass::build(std::string& error)
     return true;
 }
 
-void BackgroundPass::draw(ID3D12GraphicsCommandList* commandList, const XMFLOAT4X4& invViewProj,
-                          const XMFLOAT3& cameraPos, float time)
+void BackgroundPass::draw(ID3D12GraphicsCommandList* commandList, const Float4x4& invViewProj, const Float3& cameraPos,
+                          float time)
 {
     const BackgroundConstants constants = { invViewProj, cameraPos, time };
 

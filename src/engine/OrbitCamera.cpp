@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-using namespace DirectX;
-
 namespace {
 
 constexpr float kRadiansPerPixel = 0.008f;  // マウス 1 画素で回る角度
@@ -41,7 +39,7 @@ void OrbitCamera::update(float dt)
     if (mAutoRotate) mYaw += dt * kAutoRotateSpeed;
 }
 
-XMFLOAT3 OrbitCamera::getPosition() const
+Float3 OrbitCamera::getPosition() const
 {
     // 注視点を中心とする球の上の点 (球面座標)。
     // yaw = 0 で +z の側、 yaw を増やすと +x の側へ回り込む。 pitch を増やすと上へ
@@ -51,15 +49,14 @@ XMFLOAT3 OrbitCamera::getPosition() const
              mTarget.z + mDistance * c * std::cos(mYaw) };
 }
 
-XMMATRIX OrbitCamera::getViewMatrix() const
+Float4x4 OrbitCamera::getViewMatrix() const
 {
-    const XMFLOAT3 eye = getPosition();
     // RH = 右手系。 カメラは -z を向き、 +x が右、 +y が上になる
-    return XMMatrixLookAtRH(XMLoadFloat3(&eye), XMLoadFloat3(&mTarget), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+    return lookAtRH(getPosition(), mTarget, { 0.0f, 1.0f, 0.0f });
 }
 
-XMMATRIX OrbitCamera::getProjectionMatrix(float aspect) const
+Float4x4 OrbitCamera::getProjectionMatrix(float aspect) const
 {
     // 奥行きを 0 (kNearZ) 〜 1 (kFarZ) に写す透視投影
-    return XMMatrixPerspectiveFovRH(kFovY, aspect, kNearZ, kFarZ);
+    return perspectiveFovRH(kFovY, aspect, kNearZ, kFarZ);
 }

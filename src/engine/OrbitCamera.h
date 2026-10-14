@@ -9,7 +9,7 @@
 // ここからカメラの位置と、 ビュー・射影の行列を作る。 座標は y が上の右手系。
 // =============================================================================
 
-#include <DirectXMath.h>
+#include "MathTypes.h"
 
 class OrbitCamera {
 public:
@@ -26,16 +26,16 @@ public:
     void stopAutoRotate() { mAutoRotate = false; }
 
     // カメラの位置 (ワールド)
-    DirectX::XMFLOAT3 getPosition() const;
+    Float3 getPosition() const;
 
     // ワールド → ビュー空間 (カメラが原点で -z を向く)
-    DirectX::XMMATRIX getViewMatrix() const;
+    Float4x4 getViewMatrix() const;
 
     // ビュー空間 → クリップ空間。 aspect は画面の横 ÷ 縦
-    DirectX::XMMATRIX getProjectionMatrix(float aspect) const;
+    Float4x4 getProjectionMatrix(float aspect) const;
 
 private:
-    DirectX::XMFLOAT3 mTarget = { 0.0f, 0.4f, 0.0f };  // 注視点 (氷の真ん中あたり)
+    Float3 mTarget = { 0.0f, 0.4f, 0.0f };  // 注視点 (氷の真ん中あたり)
     float mYaw = 0.6f;
     float mPitch = 0.35f;
     float mDistance = 3.0f;

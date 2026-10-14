@@ -5,8 +5,6 @@
 
 #include <stdexcept>
 
-using namespace DirectX;
-
 Renderer::Renderer(HWND hwnd, UINT width, UINT height, const std::wstring& shaderRoot)
     : mSwapChain(mDevice, hwnd, width, height)
     , mDepthBuffer(mDevice.getDevice(), width, height)
@@ -63,22 +61,19 @@ DrawContext Renderer::beginFrame(const OrbitCamera& camera, float time)
     mCommandList->RSSetViewports(1, &viewport);
     mCommandList->RSSetScissorRects(1, &scissor);
 
-    // 5. カメラの行列。 DirectXMath は行ベクトル (p × M) の流儀なので、 ワールド → クリップは view × proj
-    const XMMATRIX viewProj = camera.getViewMatrix() * camera.getProjectionMatrix(width / height);
-    const XMMATRIX invViewProj = XMMatrixInverse(nullptr, viewProj);
+    // 5. カメラの行列。 行ベクトル (p × M) の流儀なので、 ワールド → クリップは view × proj (MathTypes.h)
+    const Float4x4 viewProj = camera.getViewMatrix() * camera.getProjectionMatrix(width / height);
 
     // HLSL の定数は列優先で読まれるので、 転置して渡す (HLSL では mul(float4(p, 1), M) と書ける)
     DrawContext context;
     context.commandList = mCommandList.Get();
-    XMStoreFloat4x4(&context.viewProj, XMMatrixTranspose(viewProj));
+    context.viewProj = transpose(viewProj);
     context.cameraPos = camera.getPosition();
     context.time = time;
 
-    XMFLOAT4X4 invViewProjT;
-    XMStoreFloat4x4(&invViewProjT, XMMatrixTranspose(invViewProj));
-
-    // 6. 背景 (空と床)。 深度には書かないので、 後から描く物がいつも手前に出る
-    mBackground.draw(mCommandList.Get(), invViewProjT, context.cameraPos, time);
+    // 6. 背景 (空と床)。 画素ごとの光線を作るため、 逆行列 (クリップ → ワールド) を渡す。
+    //    深度には書かないので、 後から描く物がいつも手前に出る
+    mBackground.draw(mCommandList.Get(), transpose(inverse(viewProj)), context.cameraPos, time);
     return context;
 }
 

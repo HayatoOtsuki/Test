@@ -7,7 +7,8 @@
 // 深度には書かない (いちばん奥にある物として扱う)。
 // =============================================================================
 
-#include <DirectXMath.h>
+#include "MathTypes.h"
+
 #include <d3d12.h>
 #include <wrl/client.h>
 
@@ -23,8 +24,7 @@ public:
     bool build(std::string& error);
 
     // invViewProj: クリップ空間 → ワールドの行列 (転置済み)。 画素ごとの光線の向きを作るのに使う
-    void draw(ID3D12GraphicsCommandList* commandList, const DirectX::XMFLOAT4X4& invViewProj,
-              const DirectX::XMFLOAT3& cameraPos, float time);
+    void draw(ID3D12GraphicsCommandList* commandList, const Float4x4& invViewProj, const Float3& cameraPos, float time);
 
 private:
     void createRootSignature();

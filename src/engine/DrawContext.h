@@ -6,7 +6,8 @@
 // エンジンの同じ役目の物 (コマンドリスト・カメラの行列と位置) に置き換える。
 // =============================================================================
 
-#include <DirectXMath.h>
+#include "MathTypes.h"
+
 #include <d3d12.h>
 
 struct DrawContext {
@@ -15,8 +16,8 @@ struct DrawContext {
 
     // ワールド → クリップ空間の行列 (ビュー × 射影)。
     // HLSL の定数は列優先で読まれるので、 転置して入れてある。 HLSL では mul(float4(p, 1), ViewProj) と書く
-    DirectX::XMFLOAT4X4 viewProj = {};
+    Float4x4 viewProj;
 
-    DirectX::XMFLOAT3 cameraPos = {};  // カメラの位置 (ワールド、 メートル)
-    float time = 0.0f;                 // 起動からの秒
+    Float3 cameraPos;   // カメラの位置 (ワールド、 メートル)
+    float time = 0.0f;  // 起動からの秒
 };
