@@ -17,7 +17,7 @@ constexpr UINT kInitialWidth = 1280;
 constexpr UINT kInitialHeight = 720;
 
 // ウィンドウの題名に出す形の名前 (IceShape の順)
-const wchar_t* const kShapeNames[] = { L"Cube", L"Sphere", L"Cylinder" };
+const wchar_t* const kShapeNames[] = { L"Cube", L"Sphere", L"Cylinder", L"SDF" };
 static_assert(sizeof(kShapeNames) / sizeof(kShapeNames[0]) == static_cast<size_t>(IceShape::Count),
               "kShapeNames must have one name per IceShape");
 

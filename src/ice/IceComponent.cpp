@@ -123,3 +123,28 @@ float IceComponent::getSpecular() const
 {
     return getMaterial().specular;
 }
+
+// ---- SDF の氷の値 ----
+
+void IceComponent::setRefractiveIndex(float n)
+{
+    // 1 より小さいと 「氷の方が空気より光が速い」 ことになり、 屈折の向きが逆になる。 上はダイヤモンド (2.42) くらいまで
+    mImplement->getParams().refractiveIndex = std::clamp(n, 1.0f, 2.5f);
+}
+
+float IceComponent::getRefractiveIndex() const
+{
+    return mImplement->getParams().refractiveIndex;
+}
+
+void IceComponent::setAbsorptionColor(const Float3& color)
+{
+    // 0 だと吸収の係数 −ln(色) が無限大になるので、 0.01 で止める
+    mImplement->getParams().absorptionColor = { std::clamp(color.x, 0.01f, 1.0f), std::clamp(color.y, 0.01f, 1.0f),
+                                                std::clamp(color.z, 0.01f, 1.0f) };
+}
+
+const Float3& IceComponent::getAbsorptionColor() const
+{
+    return mImplement->getParams().absorptionColor;
+}
