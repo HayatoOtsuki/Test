@@ -44,6 +44,11 @@ void Window::show(int showCommand)
     ShowWindow(mHwnd, showCommand);
 }
 
+void Window::setTitle(const wchar_t* title)
+{
+    if (mHwnd) SetWindowTextW(mHwnd, title);
+}
+
 void Window::close()
 {
     // WM_DESTROY が届き、 そこで終了 (WM_QUIT) を出す
