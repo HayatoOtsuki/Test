@@ -18,9 +18,13 @@ cbuffer IceFrame : register(b0)
     float    Time;       // 起動からの秒
 };
 
-// 氷ごとの値 (ルート引数 1)
+// 氷ごとの値 (ルート引数 1)。 16 バイト (float 4 個) ずつの区切りに合わせて並べてある
 cbuffer IceObject : register(b1)
 {
-    float3 Position;     // 氷の位置 (ワールド)。 物体の空間の点にこれを足すとワールドの点になる
-    float  ObjectPad;
+    float3 Position;   // 氷の位置 (ワールド)。 物体の空間の点にこれを足すとワールドの点になる
+    float  Metallic;   // 金属らしさ (0〜1)
+    float3 BaseColor;  // 下地の色
+    float  Roughness;  // 表面の粗さ (0.04〜1)
+    float  Specular;   // 金属でない面の、 正面から見た反射の強さ (0.5 で 4%)
+    float3 ObjectPad;
 };

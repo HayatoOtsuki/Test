@@ -8,6 +8,8 @@
 
 #include "IceImplement.h"
 
+#include <algorithm>
+
 IceComponent::IceComponent() : mImplement(std::make_unique<IceImplement>())
 {
 }
@@ -50,4 +52,45 @@ void IceComponent::setPosition(const Float3& position)
 Float3 IceComponent::getPosition() const
 {
     return mImplement->getParams().position;
+}
+
+void IceComponent::setBaseColor(const Float3& color)
+{
+    mImplement->getParams().baseColor = { std::clamp(color.x, 0.0f, 1.0f), std::clamp(color.y, 0.0f, 1.0f),
+                                          std::clamp(color.z, 0.0f, 1.0f) };
+}
+
+Float3 IceComponent::getBaseColor() const
+{
+    return mImplement->getParams().baseColor;
+}
+
+void IceComponent::setMetallic(float metallic)
+{
+    mImplement->getParams().metallic = std::clamp(metallic, 0.0f, 1.0f);
+}
+
+float IceComponent::getMetallic() const
+{
+    return mImplement->getParams().metallic;
+}
+
+void IceComponent::setRoughness(float roughness)
+{
+    mImplement->getParams().roughness = std::clamp(roughness, 0.04f, 1.0f);
+}
+
+float IceComponent::getRoughness() const
+{
+    return mImplement->getParams().roughness;
+}
+
+void IceComponent::setSpecular(float specular)
+{
+    mImplement->getParams().specular = std::clamp(specular, 0.0f, 1.0f);
+}
+
+float IceComponent::getSpecular() const
+{
+    return mImplement->getParams().specular;
 }

@@ -42,6 +42,12 @@ struct IceGeometry {
 struct IceParams {
     IceShape shape = IceShape::Cube;
     Float3 position = { 0.0f, 0.0f, 0.0f };
+
+    // マテリアル (プリミティブ)
+    Float3 baseColor = { 0.70f, 0.85f, 0.95f };  // 淡い水色
+    float metallic = 0.0f;                       // 氷は金属でない
+    float roughness = 0.3f;
+    float specular = 0.5f;                       // F0 = 0.04
 };
 
 class IceImplement {
@@ -63,6 +69,7 @@ private:
     void generateShape();
     IceGeometry generateCube();
     IceGeometry generateSphere();
+    IceGeometry generateCylinder();
     // 頂点とインデックスの並びから、 GPU のバッファを作って IceGeometry にまとめる
     IceGeometry createGeometry(const std::vector<IceVertex>& vertices, const std::vector<uint32_t>& indices);
 

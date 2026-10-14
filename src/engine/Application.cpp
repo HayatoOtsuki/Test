@@ -1,6 +1,7 @@
 #include "Application.h"
 
 #include <chrono>
+#include <cwchar>
 #include <string>
 #include <utility>
 
@@ -15,9 +16,11 @@ constexpr UINT kInitialWidth = 1280;
 constexpr UINT kInitialHeight = 720;
 
 // ウィンドウの題名に出す形の名前 (IceShape の順)
-const wchar_t* const kShapeTitles[] = { L"SDF Ice - Cube", L"SDF Ice - Sphere" };
-static_assert(sizeof(kShapeTitles) / sizeof(kShapeTitles[0]) == static_cast<size_t>(IceShape::Count),
-              "kShapeTitles must have one title per IceShape");
+const wchar_t* const kShapeNames[] = { L"Cube", L"Sphere", L"Cylinder" };
+static_assert(sizeof(kShapeNames) / sizeof(kShapeNames[0]) == static_cast<size_t>(IceShape::Count),
+              "kShapeNames must have one name per IceShape");
+
+constexpr float kMaterialStep = 0.1f;  // [ ] , . で値を変える幅
 
 } // namespace
 
@@ -42,7 +45,17 @@ Application::Application(HINSTANCE instance)
 void Application::setShape(IceShape shape)
 {
     mIce.setShape(shape);
-    mWindow.setTitle(kShapeTitles[static_cast<int>(mIce.getShape())]);
+    updateTitle();
+}
+
+void Application::updateTitle()
+{
+    wchar_t title[160];
+    std::swprintf(title, sizeof(title) / sizeof(title[0]),
+                  L"SDF Ice - %ls | metallic %.1f | roughness %.2f | specular %.2f",
+                  kShapeNames[static_cast<int>(mIce.getShape())], mIce.getMetallic(), mIce.getRoughness(),
+                  mIce.getSpecular());
+    mWindow.setTitle(title);
 }
 
 void Application::onKeyDown(WPARAM key)
@@ -57,6 +70,27 @@ void Application::onKeyDown(WPARAM key)
         setShape(static_cast<IceShape>(next));
         break;
     }
+    // マテリアルを試す: M で金属かどうか、 [ ] で粗さ、 , . で鏡面反射の強さ
+    case 'M':
+        mIce.setMetallic(mIce.getMetallic() < 0.5f ? 1.0f : 0.0f);
+        updateTitle();
+        break;
+    case VK_OEM_4:  // [
+        mIce.setRoughness(mIce.getRoughness() - kMaterialStep);
+        updateTitle();
+        break;
+    case VK_OEM_6:  // ]
+        mIce.setRoughness(mIce.getRoughness() + kMaterialStep);
+        updateTitle();
+        break;
+    case VK_OEM_COMMA:
+        mIce.setSpecular(mIce.getSpecular() - kMaterialStep);
+        updateTitle();
+        break;
+    case VK_OEM_PERIOD:
+        mIce.setSpecular(mIce.getSpecular() + kMaterialStep);
+        updateTitle();
+        break;
     default:
         // 1, 2, 3 … で形を選ぶ (IceShape の順)。 範囲の外は setShape が無視する
         if (key >= '1' && key <= '9') setShape(static_cast<IceShape>(key - '1'));

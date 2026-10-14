@@ -28,6 +28,9 @@ constexpr float kCubeHalfSize = 0.4f;   // 立方体の半分の大きさ (1 辺
 constexpr float kSphereRadius = 0.42f;  // 球の半径
 constexpr int kSphereSlices = 48;       // 球の経線の数 (横の分け方)
 constexpr int kSphereStacks = 24;       // 球の緯線の数 (縦の分け方)
+constexpr float kCylinderRadius = 0.35f;  // 円柱の半径
+constexpr float kCylinderHeight = 0.8f;   // 円柱の高さ
+constexpr int kCylinderSlices = 48;       // 円柱の周りの分け方
 
 // CPU から書けて GPU から読めるバッファ (アップロードヒープ) を作り、 data を写す。
 // 頂点とインデックスは作った後に変えず、 小さいので、 GPU 専用のメモリへ移さずにここに置いたまま使う
@@ -75,6 +78,7 @@ void IceImplement::generateShape()
         switch (static_cast<IceShape>(i)) {
         case IceShape::Cube: mGeom[i] = generateCube(); break;
         case IceShape::Sphere: mGeom[i] = generateSphere(); break;
+        case IceShape::Cylinder: mGeom[i] = generateCylinder(); break;
         default: break;
         }
     }
@@ -166,6 +170,64 @@ IceGeometry IceImplement::generateSphere()
             const uint32_t c = a + row;
             const uint32_t d = c + 1;
             indices.insert(indices.end(), { c, d, b, c, b, a });
+        }
+    }
+    return createGeometry(vertices, indices);
+}
+
+// -----------------------------------------------------------------------------
+// 円柱
+// -----------------------------------------------------------------------------
+
+IceGeometry IceImplement::generateCylinder()
+{
+    // 側面と、 上と下のふた (円) の 3 つに分けて作る。
+    // 側面とふたの境目 (縁) では法線が急に変わるので、 縁の頂点は側面用とふた用で別に持つ。
+    const float r = kCylinderRadius;
+    const float h = kCylinderHeight;
+    std::vector<IceVertex> vertices;
+    std::vector<uint32_t> indices;
+
+    // ---- 側面: 上の輪 (y = h) と下の輪 (y = 0) を、 球と同じ並べ方の四角形でつなぐ ----
+    // theta = 0 で +z、 theta が増えると +x の側へ回る (外から見て右へ進む)
+    for (int i = 0; i <= 1; ++i) {
+        const float y = (i == 0) ? h : 0.0f;  // i = 0 が上の輪、 i = 1 が下の輪
+        for (int j = 0; j <= kCylinderSlices; ++j) {
+            const float theta = 2.0f * kPi * static_cast<float>(j) / kCylinderSlices;
+            const Float3 n = { std::sin(theta), 0.0f, std::cos(theta) };  // 側面の法線は真横 (外向き)
+            const Float2 uv = { static_cast<float>(j) / kCylinderSlices, static_cast<float>(i) };
+            vertices.push_back({ { n.x * r, y, n.z * r }, n, uv });
+        }
+    }
+    const uint32_t row = kCylinderSlices + 1;
+    for (uint32_t j = 0; j < kCylinderSlices; ++j) {
+        // a-b が上の輪、 c-d が下の輪 (球の generateSphere と同じ図)
+        const uint32_t a = j, b = j + 1, c = j + row, d = c + 1;
+        indices.insert(indices.end(), { c, d, b, c, b, a });
+    }
+
+    // ---- ふた: 真ん中の頂点 1 つと縁の輪を、 扇のように三角形でつなぐ ----
+    // 上のふたは法線 +y。 上から見て反時計回りにするには、 真ん中 → 縁の j → 縁の j + 1 の順
+    // (theta が増える向きは、 上から見ると反時計回り)。 下のふたは裏から見ることになるので逆の順にする
+    for (int cap = 0; cap < 2; ++cap) {
+        const bool top = (cap == 0);
+        const float y = top ? h : 0.0f;
+        const Float3 n = { 0.0f, top ? 1.0f : -1.0f, 0.0f };
+        const uint32_t center = static_cast<uint32_t>(vertices.size());
+        vertices.push_back({ { 0.0f, y, 0.0f }, n, { 0.5f, 0.5f } });
+        for (int j = 0; j <= kCylinderSlices; ++j) {
+            const float theta = 2.0f * kPi * static_cast<float>(j) / kCylinderSlices;
+            const float s = std::sin(theta), c = std::cos(theta);
+            // UV は円をそのまま 0〜1 の四角に写す
+            vertices.push_back({ { s * r, y, c * r }, n, { 0.5f + 0.5f * s, 0.5f - 0.5f * c } });
+        }
+        for (uint32_t j = 0; j < kCylinderSlices; ++j) {
+            const uint32_t p0 = center + 1 + j, p1 = p0 + 1;
+            if (top) {
+                indices.insert(indices.end(), { center, p0, p1 });
+            } else {
+                indices.insert(indices.end(), { center, p1, p0 });
+            }
         }
     }
     return createGeometry(vertices, indices);

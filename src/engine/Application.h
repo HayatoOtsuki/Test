@@ -24,7 +24,8 @@ public:
 private:
     void onKeyDown(WPARAM key);
     void reloadShaders();
-    void setShape(IceShape shape);  // 形を変え、 ウィンドウの題名に形の名前を出す
+    void setShape(IceShape shape);  // 形を変える
+    void updateTitle();             // ウィンドウの題名に、 今の形とマテリアルの値を出す
 
     // 宣言の順に作られる。 Renderer はウィンドウのハンドルを使うので Window の後
     Window mWindow;
