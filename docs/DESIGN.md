@@ -41,6 +41,7 @@ Test/
 │   │   ├── BackgroundPass.h / .cpp… 空と床を全画面に描く
 │   │   ├── ShaderCompiler.h / .cpp… HLSL のファイルをコンパイルする
 │   │   ├── DrawContext.h          … 描画に渡す物 (コマンドリスト・カメラ)
+│   │   ├── MathTypes.h            … 小さなベクトルと行列 (Float3 / Float4x4)
 │   │   ├── DxCheck.h              … HRESULT の失敗を例外にする
 │   │   └── shaders/
 │   │       ├── Environment.hlsli  … 空・床・表示用の変換 (氷のシェーダーも使う)
@@ -173,7 +174,7 @@ SDF の箱は **裏面だけ** を描く (表面をカリング)。 カメラが
 | 2 | デスクリプターテーブル (`t0`) | SDF の 3D テクスチャ |
 | 静的サンプラー (`s0`) | 線形、 端で止める | |
 
-行列は CPU で転置して渡し、 HLSL では `mul(ViewProj, float4(p, 1))` と書く。
+行列は行ベクトル (p × M) の流儀で作り (`src/engine/MathTypes.h`)、 CPU で転置して渡す。 HLSL では `mul(float4(p, 1), ViewProj)` と、 CPU と同じ順で書く。
 
 ### 光の追跡 (`IceSdf.hlsl`)
 
@@ -232,6 +233,7 @@ flowchart TD
 | `Renderer` | `beginFrame` (クリア・背景) と `endFrame` (実行・表示・待つ) |
 | `BackgroundPass` | 空と床を全画面の三角形で描く |
 | `ShaderCompiler` | HLSL のファイルをコンパイルする (`D3DCompileFromFile`, SM 5.0) |
+| `MathTypes.h` | `Float3` / `Float4x4` と、 ビュー・射影・逆行列。 外部の数学ライブラリ (DirectXMath など) は使わない |
 
 `DrawContext` (氷の部品へ渡す物):
 
