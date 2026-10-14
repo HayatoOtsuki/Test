@@ -20,8 +20,16 @@ set(ENGINE_SOURCES
     src/engine/DxCheck.h
 )
 
-add_executable(SdfIce WIN32 src/main.cpp ${ENGINE_SOURCES})
+# 氷の部品 (自分のエンジンへ移すのはこのフォルダ)
+set(ICE_SOURCES
+    src/ice/IceComponent.cpp src/ice/IceComponent.h
+    src/ice/IceImplement.cpp src/ice/IceImplement.h
+    src/ice/IceGenerate.cpp
+)
+
+add_executable(SdfIce WIN32 src/main.cpp ${ENGINE_SOURCES} ${ICE_SOURCES})
 source_group(engine FILES ${ENGINE_SOURCES})
+source_group(ice FILES ${ICE_SOURCES})
 
 # #include "engine/..." と #include "ice/..." を src から探す
 target_include_directories(SdfIce PRIVATE src)

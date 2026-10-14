@@ -31,6 +31,7 @@ public:
     void setCallbacks(Callbacks callbacks) { mCallbacks = std::move(callbacks); }
     void show(int showCommand);
     void close();
+    void setTitle(const wchar_t* title);
 
     // たまっているメッセージを全部処理する。 終了 (WM_QUIT) が来たら false を返す
     bool processMessages();

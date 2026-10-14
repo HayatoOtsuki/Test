@@ -1,0 +1,87 @@
+#pragma once
+// =============================================================================
+// IceImplement.h — 氷の部品の実装
+//
+// IceComponent が private に持つ。 中身は 2 つのファイルに分けてある:
+//   IceImplement.cpp : 描く準備 (ルートシグネチャ・パイプライン) と draw3D
+//   IceGenerate.cpp  : 形づくり (generateShape と、 形ごとの generateXxx)
+//
+// 形はすべて最初の draw3D で 1 回だけ作り、 mGeom (形の種類を添え字にした配列) に入れておく。
+// 描くときは mGeom[今の形] を選ぶだけなので、 形の切り替えは一瞬で済む。
+// =============================================================================
+
+#include "IceComponent.h"
+
+#include "engine/DrawContext.h"
+#include "engine/MathTypes.h"
+
+#include <d3d12.h>
+#include <wrl/client.h>
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+// 頂点 1 つ。 IceMesh.hlsl の VSInput と同じ並び (32 バイト)
+struct IceVertex {
+    Float3 position;  // 物体の空間の位置 (原点は底の真ん中、 メートル)
+    Float3 normal;    // 外向きの法線 (長さ 1)
+    Float2 uv;        // テクスチャ座標 (0〜1)
+};
+
+// 形 1 つ分 (mGeom の 1 つ)
+struct IceGeometry {
+    Microsoft::WRL::ComPtr<ID3D12Resource> vertexBuffer;
+    Microsoft::WRL::ComPtr<ID3D12Resource> indexBuffer;
+    D3D12_VERTEX_BUFFER_VIEW vertexView = {};  // 頂点バッファのどこからどれだけ読むか
+    D3D12_INDEX_BUFFER_VIEW indexView = {};    // インデックスバッファの同じもの
+    UINT indexCount = 0;                       // 描くインデックスの数 (三角形の数 × 3)
+};
+
+// 氷の値。 IceComponent のセッター・ゲッターが読み書きする
+struct IceParams {
+    IceShape shape = IceShape::Cube;
+    Float3 position = { 0.0f, 0.0f, 0.0f };
+
+    // マテリアル (プリミティブ)
+    Float3 baseColor = { 0.70f, 0.85f, 0.95f };  // 淡い水色
+    float metallic = 0.0f;                       // 氷は金属でない
+    float roughness = 0.3f;
+    float specular = 0.5f;                       // F0 = 0.04
+};
+
+class IceImplement {
+public:
+    void initialize(ID3D12Device* device, DXGI_FORMAT colorFormat, DXGI_FORMAT depthFormat,
+                    const std::wstring& shaderDir);
+    void draw3D(const DrawContext& context);
+    bool reloadShaders(std::string& error);
+
+    IceParams& getParams() { return mParams; }
+    const IceParams& getParams() const { return mParams; }
+
+private:
+    // ---- IceImplement.cpp: 描く準備 ----
+    void createRootSignature();
+    bool buildPipelines(std::string& error);
+
+    // ---- IceGenerate.cpp: 形づくり ----
+    void generateShape();
+    IceGeometry generateCube();
+    IceGeometry generateSphere();
+    IceGeometry generateCylinder();
+    // 頂点とインデックスの並びから、 GPU のバッファを作って IceGeometry にまとめる
+    IceGeometry createGeometry(const std::vector<IceVertex>& vertices, const std::vector<uint32_t>& indices);
+
+    ID3D12Device* mDevice = nullptr;
+    DXGI_FORMAT mColorFormat = DXGI_FORMAT_UNKNOWN;
+    DXGI_FORMAT mDepthFormat = DXGI_FORMAT_UNKNOWN;
+    std::wstring mShaderDir;
+
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mMeshPipeline;  // プリミティブ (メッシュ) 用
+
+    IceGeometry mGeom[static_cast<int>(IceShape::Count)];  // 全部の形
+    bool mGenerated = false;                               // generateShape を済ませたか
+    IceParams mParams;
+};

@@ -3,7 +3,7 @@
 ## 目的
 
 氷の部品 (`src/ice/`) に、 SDF (符号付き距離場) で形を表した氷を足す。
-今あるプリミティブ (キューブ・球) と同じく `generateShape()` の中で作って `mGeom` に入れ、 切り替えて描けるようにする。
+今あるプリミティブ (キューブ・球・円柱) と同じく `generateShape()` の中で作って `mGeom` に入れ、 切り替えて描けるようにする。
 
 SDF の氷では、 氷らしく見えるための次の要点を押さえる。
 
@@ -19,7 +19,9 @@ SDF の氷では、 氷らしく見えるための次の要点を押さえる。
 | やる | やらない |
 | --- | --- |
 | 氷の部品 (`IceComponent` / `IceImplement` / `IceGenerate`) | 融解・破壊・浮力などの物理 |
-| プリミティブ (キューブ・球) と SDF の形の切り替え | 氷を複数並べる、 氷どうしの重なり |
+| プリミティブ (キューブ・球・円柱) と SDF の形の切り替え | 氷を複数並べる、 氷どうしの重なり |
+| プリミティブの質感 (金属・粗さの PBR) をセッターで変える | 粗さに応じた映り込みのぼかし (プリフィルター) |
+| カメラとライトを定数バッファでシェーダーへ渡す (ハードコードしない) | 複数のライト、 点光源 |
 | SDF を CPU で 3D テクスチャに焼き、 箱の中をレイマーチで描く | メッシュからの SDF の生成 |
 | 氷を動かすための最小のエンジンの代わり (`src/engine/`) | TAA、 ポストエフェクト |
 
@@ -40,10 +42,13 @@ Test/
 │   │   ├── Renderer.h / .cpp      … フレームの始まりと終わり、 背景
 │   │   ├── BackgroundPass.h / .cpp… 空と床を全画面に描く
 │   │   ├── ShaderCompiler.h / .cpp… HLSL のファイルをコンパイルする
-│   │   ├── DrawContext.h          … 描画に渡す物 (コマンドリスト・カメラ)
+│   │   ├── DrawContext.h          … 描画に渡す物 (コマンドリスト・シーンの定数)
+│   │   ├── DirectionalLight.h     … 平行光源 (太陽) の向き・色・強さ
+│   │   ├── SceneConstants.h       … シーンの定数 (カメラとライト)。 全部のシェーダーが b0 で読む
 │   │   ├── MathTypes.h            … 小さなベクトルと行列 (Float3 / Float4x4)
 │   │   ├── DxCheck.h              … HRESULT の失敗を例外にする
 │   │   └── shaders/
+│   │       ├── SceneConstants.hlsli … シーンの定数の HLSL 側 (cbuffer SceneConstants : b0)
 │   │       ├── Environment.hlsli  … 空・床・表示用の変換 (氷のシェーダーも使う)
 │   │       └── Background.hlsl    … 背景の全画面シェーダー
 │   └── ice/                       … 氷の部品 (ここだけ見ればよい)
@@ -51,14 +56,18 @@ Test/
 │       ├── IceImplement.h / .cpp  … 実装。 draw3D、 パイプライン、 mGeom
 │       ├── IceGenerate.cpp        … IceImplement の形づくり (generateShape と各形)
 │       └── shaders/
-│           ├── IceCommon.hlsli    … 定数・氷の値・Fresnel
-│           ├── IceMesh.hlsl       … プリミティブ (メッシュ) の氷
+│           ├── IceCommon.hlsli    … 氷ごとの定数 (b1)・氷の値・Fresnel
+│           ├── IceMesh.hlsl       … プリミティブ (メッシュ) の面。 金属・粗さの PBR
 │           └── IceSdf.hlsl        … SDF の氷 (箱の中をレイマーチ)
-└── docs/                          … この設計と、 要素ごとの解説
+└── docs/
+    ├── DESIGN.md                  … この設計
+    ├── 01-…08-*.md                … 要素ごとの解説 (コードと計算・アルゴリズムの説明)
+    ├── guide/                     … 自分のプロジェクトに氷を実装する手順と、 参考文献
+    └── presentation/              … 成果発表のスライドのテンプレートと、 構成のメモ
 ```
 
 `src/engine/` は自分のエンジンの代わりで、 氷の部品が使う物 (デバイス・コマンドリスト・カメラ) を用意するだけ。
-自分のエンジンへ移すときは `src/ice/` を持っていき、 `DrawContext` と `GraphicsDevice` の所をエンジンの物に置き換える。
+自分のエンジンへ移すときは `src/ice/` を持っていき、 `DrawContext` と、 シーンの定数 (カメラとライト) の受け取り方をエンジンの物に置き換える (`docs/guide/`)。
 
 ### 1 フレームの流れ
 
@@ -92,6 +101,7 @@ classDiagram
         +reloadShaders(error) bool
         +setShape(shape) / getShape()
         +setPosition(p) / getPosition()
+        +setBaseColor(c) / setMetallic(m) / setRoughness(r) / setSpecular(s)
         +setRefractiveIndex(n) / getRefractiveIndex()
         +setAbsorptionColor(c) / getAbsorptionColor()
         +setBubbleDensity(d) / getBubbleDensity()
@@ -102,6 +112,7 @@ classDiagram
         -generateShape(commandList)
         -generateCube() IceGeometry
         -generateSphere() IceGeometry
+        -generateCylinder() IceGeometry
         -generateSDF(commandList) IceGeometry
         -mGeom[IceShape::Count] : IceGeometry
         -mShape : IceShape
@@ -114,9 +125,9 @@ classDiagram
 | --- | --- |
 | `IceComponent.h / .cpp` | 外から使う窓口。 形と氷の値のセッター・ゲッター、 `draw3D` と `initialize` を `IceImplement` へ渡す。 実装は `mImplement` (private) に隠す |
 | `IceImplement.h / .cpp` | ルートシグネチャと PSO (メッシュ用・SDF 用)、 SDF の SRV ヒープ、 `draw3D` |
-| `IceGenerate.cpp` | `IceImplement` の形づくりだけを分けたファイル。 `generateShape` / `generateCube` / `generateSphere` / `generateSDF` |
+| `IceGenerate.cpp` | `IceImplement` の形づくりだけを分けたファイル。 `generateShape` / `generateCube` / `generateSphere` / `generateCylinder` / `generateSDF` |
 
-`IceShape` は形の種類 (`Cube`, `Sphere`, `Sdf`, `Count`)。 `mGeom` は `IceShape` を添え字にした配列。
+`IceShape` は形の種類 (`Cube`, `Sphere`, `Cylinder`, `Sdf`, `Count`)。 `mGeom` は `IceShape` を添え字にした配列。
 
 ### 形づくり (`generateShape`)
 
@@ -127,9 +138,10 @@ void IceImplement::generateShape(ID3D12GraphicsCommandList* commandList)
 {
     for (int i = 0; i < static_cast<int>(IceShape::Count); ++i) {
         switch (static_cast<IceShape>(i)) {
-        case IceShape::Cube:   mGeom[i] = generateCube(); break;
-        case IceShape::Sphere: mGeom[i] = generateSphere(); break;
-        case IceShape::Sdf:    mGeom[i] = generateSDF(commandList); break;
+        case IceShape::Cube:     mGeom[i] = generateCube(); break;
+        case IceShape::Sphere:   mGeom[i] = generateSphere(); break;
+        case IceShape::Cylinder: mGeom[i] = generateCylinder(); break;
+        case IceShape::Sdf:      mGeom[i] = generateSDF(commandList); break;
         default: break;
         }
     }
@@ -159,7 +171,7 @@ void IceImplement::generateShape(ID3D12GraphicsCommandList* commandList)
 
 | 形 | PSO | 中身 |
 | --- | --- | --- |
-| キューブ・球 | メッシュ用 (`IceMesh.hlsl`) | 表面で反射と屈折。 表面は 1 枚しか分からないので、 厚さは一定と仮定して吸収する |
+| キューブ・球・円柱 | メッシュ用 (`IceMesh.hlsl`) | 金属・粗さの PBR (GGX・Smith・Schlick の Fresnel と Lambert)。 マテリアルはセッターで変える |
 | SDF | SDF 用 (`IceSdf.hlsl`) | 箱の裏面を描き、 その画素を通る光線で箱の中をレイマーチする。 氷に当たらなければ捨てる (`discard`) |
 
 SDF の箱は **裏面だけ** を描く (表面をカリング)。 カメラが箱の中に入っても描けるようにするため。
@@ -169,8 +181,8 @@ SDF の箱は **裏面だけ** を描く (表面をカリング)。 カメラが
 
 | 番号 | 種類 | 中身 |
 | --- | --- | --- |
-| 0 | 32 bit 定数 20 個 (`b0`) | `ViewProj` (16)、 `CameraPos` (3)、 `Time` (1) |
-| 1 | 32 bit 定数 16 個 (`b1`) | `Position`, `RefractiveIndex`, `AbsorptionColor`, `BubbleDensity`, `BoundsMin`, `BoundsMax` |
+| 0 | 定数バッファビュー (`b0`) | エンジンのシーンの定数 (`SceneConstants`: カメラとライト)。 エンジンが毎フレーム書いたものを、 そのまま読む |
+| 1 | 32 bit 定数 (`b1`) | 氷ごとの値: `Position`、 マテリアル (`BaseColor`, `Metallic`, `Roughness`, `Specular`)、 SDF の値 (`RefractiveIndex`, `AbsorptionColor`, `BubbleDensity`, `BoundsMin`, `BoundsMax`) |
 | 2 | デスクリプターテーブル (`t0`) | SDF の 3D テクスチャ |
 | 静的サンプラー (`s0`) | 線形、 端で止める | |
 
@@ -211,7 +223,11 @@ flowchart TD
 
 | 値 | 既定 | 意味 |
 | --- | --- | --- |
-| 形 | `Sdf` | `Cube` / `Sphere` / `Sdf` |
+| 形 | `Cube` | `Cube` / `Sphere` / `Cylinder` / `Sdf` |
+| 下地の色 | (0.70, 0.85, 0.95) | プリミティブの色 |
+| 金属 | 0 | 0 = 金属でない、 1 = 金属 |
+| 粗さ | 0.3 | 0.04〜1 |
+| 鏡面反射の強さ | 0.5 | 金属でない面の F0 = 0.08 × 値 (0.5 で 4%) |
 | 位置 | (0, 0, 0) | 物体の原点 (底の中心) の位置 |
 | 屈折率 | 1.31 | 氷 (空気は 1.0)。 F0 = ((n − 1) / (n + 1))² |
 | 吸収の色 | (0.45, 0.75, 0.90) | 厚さ 1 m を通った白がこの色になる。 σa = −ln(色) |
@@ -234,15 +250,29 @@ flowchart TD
 | `BackgroundPass` | 空と床を全画面の三角形で描く |
 | `ShaderCompiler` | HLSL のファイルをコンパイルする (`D3DCompileFromFile`, SM 5.0) |
 | `MathTypes.h` | `Float3` / `Float4x4` と、 ビュー・射影・逆行列。 外部の数学ライブラリ (DirectXMath など) は使わない |
+| `DirectionalLight.h` | 平行光源 (太陽) の向き・色・強さ。 `Application` が持つ |
+| `SceneConstants.h` | カメラとライトをまとめた定数。 `Renderer` が毎フレーム定数バッファに書き、 背景も氷も `b0` で読む |
 
 `DrawContext` (氷の部品へ渡す物):
 
 | メンバー | 内容 |
 | --- | --- |
 | `commandList` | 記録中のコマンドリスト |
-| `viewProj` | ビュー × 射影の行列 (転置済み) |
-| `cameraPos` | カメラの位置 |
-| `time` | 起動からの秒 |
+| `sceneConstants` | シーンの定数バッファの GPU のアドレス。 ルート引数 0 (`b0`) に渡す |
+| `scene` | 同じ値の CPU 側の写し (C++ でカメラの位置などを使うとき用) |
+
+### シーンの定数 (カメラとライト)
+
+カメラとライトの値は、 シェーダーに **ハードコードしない**。 エンジンが毎フレーム 1 つの定数バッファに書き、 どのシェーダーも同じ番号 (`b0`) で読む (多くのエンジンと同じ形)。
+
+| 名前 | 中身 |
+| --- | --- |
+| `ViewProj` / `InvViewProj` | ビュー × 射影とその逆 (転置済み) |
+| `CameraPos`, `Time` | カメラの位置、 起動からの秒 |
+| `LightDirection` | 面から太陽へ向かう向き (長さ 1) |
+| `LightColor` | 太陽の色 × 強さ |
+
+自分のエンジンで同じ物を探す手順は `docs/04-camera-light.md` と `docs/guide/` にまとめる。
 
 座標: 単位はメートル、 y が上の右手系。 床は `y = 0`。 三角形は外から見て反時計回りを表にする。
 
@@ -252,7 +282,10 @@ flowchart TD
 | --- | --- |
 | 左ドラッグ | カメラを回す |
 | ホイール | 寄る・引く |
-| 1 / 2 / 3, Tab | 形を切り替える (キューブ / 球 / SDF、 Tab は順に) |
+| 1 / 2 / 3 / 4, Tab | 形を切り替える (キューブ / 球 / 円柱 / SDF、 Tab は順に) |
+| M | 金属と金属でないを切り替える |
+| `[` `]` | 粗さを下げる・上げる |
+| `,` `.` | 鏡面反射の強さを下げる・上げる |
 | Space | 自動回転の切り替え |
 | R | シェーダーを読み直す |
 | Esc | 終了 |
@@ -261,7 +294,9 @@ flowchart TD
 
 | 項目 | どうなればよいか |
 | --- | --- |
-| 切り替え | 1 / 2 / 3 と Tab で形が変わる |
+| 切り替え | 1〜4 と Tab で形が変わる |
+| マテリアル | M・`[` `]`・`,` `.` で質感が変わる |
+| ライト | `DirectionalLight` の向きを変えると、 背景・プリミティブ・氷の照らされ方がそろって変わる |
 | 反射 | 正面からはほとんど映らず、 浅い角度で強く映る |
 | 屈折 | 氷越しの床の市松模様がずれて見える |
 | 吸収 | 厚い所ほど青い |
@@ -275,9 +310,9 @@ flowchart TD
 | フェーズ | 要素 (ブランチ) | 完了の条件 |
 | --- | --- | --- |
 | 0 設計 | `docs/design`, `docs/ice-module-design` | この文書 |
-| 1 基盤 | `feature/dx12-base`, `feature/environment`, `feature/ice-component` | 空と床の上に、 キューブと球のプリミティブを切り替えて描ける |
+| 1 基盤 | `feature/dx12-base`, `feature/environment`, `feature/ice-component`, `feature/camera-light` | 空と床の上に、 キューブ・球・円柱を切り替えて描ける。 カメラとライトは定数バッファから読む |
 | 2 SDF 氷 | `feature/generate-sdf`, `feature/ice-optics` | SDF の氷が反射・屈折・吸収・全反射して見える |
-| 3 仕上げ | `feature/ice-bubbles`, `feature/ice-shadow`, `docs/readme` | 白く濁った芯、 色付きの影、 使い方の README |
+| 3 仕上げ | `feature/ice-bubbles`, `feature/ice-shadow`, `docs/guide`, `docs/presentation`, `docs/readme` | 白く濁った芯、 色付きの影、 実装の手順と参考文献、 発表のテンプレート、 README |
 
 各要素には `docs/` に解説を 1 つ付ける (必要なコードを載せ、 1 つずつ説明する)。
 エンジンの代わりの要素の解説は短く、 氷の部品の要素の解説を詳しくする。
@@ -287,10 +322,16 @@ flowchart TD
 | `feature/dx12-base` | `docs/01-dx12-base.md` |
 | `feature/environment` | `docs/02-environment.md` |
 | `feature/ice-component` | `docs/03-ice-component.md` |
-| `feature/generate-sdf` | `docs/04-generate-sdf.md` |
-| `feature/ice-optics` | `docs/05-ice-optics.md` |
-| `feature/ice-bubbles` | `docs/06-ice-bubbles.md` |
-| `feature/ice-shadow` | `docs/07-ice-shadow.md` |
+| `feature/camera-light` | `docs/04-camera-light.md` |
+| `feature/generate-sdf` | `docs/05-generate-sdf.md` |
+| `feature/ice-optics` | `docs/06-ice-optics.md` |
+| `feature/ice-bubbles` | `docs/07-ice-bubbles.md` |
+| `feature/ice-shadow` | `docs/08-ice-shadow.md` |
+| `docs/guide` | `docs/guide/` (自分のプロジェクトに実装する手順・参考文献とその利用条件) |
+| `docs/presentation` | `docs/presentation/` (スライドのテンプレート `.pptx` と構成のメモ `.txt`) |
+
+解説には、 コードの説明だけでなく、 使っている計算とアルゴリズム (式の意味・なぜそうするか) を書く。
+参考文献は、 正規の入手先であることと、 利用条件 (引用・実装・コードの流用・商用利用) を確かめて書く。
 
 ## 書き方
 
