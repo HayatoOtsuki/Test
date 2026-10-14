@@ -68,6 +68,10 @@ public:
     void setAbsorptionColor(const Float3& color);
     const Float3& getAbsorptionColor() const;
 
+    // 気泡の密度 (1/m): 芯の白い濁りの強さ。 0 で澄んだ氷。 0〜50 に収める
+    void setBubbleDensity(float density);
+    float getBubbleDensity() const;
+
 private:
     // ---- RenderEntity: Renderer だけが呼ぶ。 中身は IceImplement に任せる ----
     void initializeImplement(const RenderSetup& setup) override;

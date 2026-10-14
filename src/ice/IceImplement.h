@@ -62,6 +62,7 @@ struct IceParams {
     // SDF の氷
     float refractiveIndex = 1.31f;                   // 氷の屈折率
     Float3 absorptionColor = { 0.45f, 0.75f, 0.90f };  // 厚さ 1 m を通った白がこの色になる (本物より強め)
+    float bubbleDensity = 5.0f;                        // 芯の気泡の密度 (1/m)
 };
 
 class IceImplement {
@@ -87,8 +88,9 @@ private:
     // ---- IceImplement.cpp: 描く準備 ----
     void createRootSignature();
     bool buildPipelines(std::string& error);
-    // HLSL のファイル 1 つから PSO を 1 つ作る。 cull: カリングする面、 depthWrite: 深度に書くか
-    bool createPipeline(const std::wstring& file, D3D12_CULL_MODE cull, bool depthWrite,
+    // HLSL のファイル 1 つから PSO を 1 つ作る。
+    //   cull: カリングする面、 depthWrite: 深度に書くか、 vertexInput: 頂点バッファを読むか (影は読まない)
+    bool createPipeline(const std::wstring& file, D3D12_CULL_MODE cull, bool depthWrite, bool vertexInput,
                         Microsoft::WRL::ComPtr<ID3D12PipelineState>& pipeline, std::string& error);
 
     // ---- IceGenerate.cpp: 形づくり ----
@@ -109,6 +111,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mMeshPipeline;  // プリミティブ (メッシュ) 用
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSdfPipeline;   // SDF の形用 (箱の中をレイマーチ)
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mShadowPipeline;  // SDF の氷の影 (床を描き直す)
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvHeap;      // SDF の 3D テクスチャの SRV を置くヒープ (シェーダーから見える)
 
     IceGeometry mGeom[static_cast<int>(IceShape::Count)];  // 全部の形

@@ -60,14 +60,27 @@ float3 Sky(float3 rd)
 //         frac(n × 0.5) × 2 は、 n が偶数なら 0、 奇数なら 1 (負の数でも同じ)。
 //   光  : 太陽の光 (床は上向きなので、 当たる強さは太陽の高さ SunDirection().y) と、
 //         空から来る光 (どの向きからも同じだけ来ると考えた、 少し青い光) を足す。
-float3 ShadeFloor(float3 p)
+//   sunVisibility: 太陽の光がどれだけ届くか (1 = 全部、 0 = 影)。 色付きの影のため RGB で受け取る。
+//                  影を落とす物 (氷の部品) が、 自分の影の所の床を描き直すときに使う
+float3 ShadeFloorLit(float3 p, float3 sunVisibility)
 {
     float checker = frac((floor(p.x * 2.0) + floor(p.z * 2.0)) * 0.5) * 2.0;
     float3 albedo = lerp(float3(0.46, 0.44, 0.40), float3(0.22, 0.23, 0.26), checker);
 
-    float3 sun = SunColor() * saturate(SunDirection().y);
+    float3 sun = SunColor() * saturate(SunDirection().y) * sunVisibility;
     float3 ambient = float3(0.22, 0.30, 0.42);
     return albedo * (sun + ambient);
+}
+
+float3 ShadeFloor(float3 p)
+{
+    return ShadeFloorLit(p, float3(1.0, 1.0, 1.0));
+}
+
+// 遠くを空の色へ溶かす (霧)。 col: 距離 t の所の色、 rd: 光線の向き。 33 m で約 63% が空の色
+float3 ApplyFog(float3 col, float3 rd, float t)
+{
+    return lerp(col, Sky(rd), 1.0 - exp(-t * 0.03));
 }
 
 // -----------------------------------------------------------------------------
@@ -84,9 +97,7 @@ float3 Environment(float3 ro, float3 rd)
 {
     if (rd.y < 0.0) {
         float t = max(-ro.y / rd.y, 0.0);
-        float3 col = ShadeFloor(ro + rd * t);
-        float fog = 1.0 - exp(-t * 0.03);  // 33 m で約 63% が空の色
-        return lerp(col, Sky(rd), fog);
+        return ApplyFog(ShadeFloor(ro + rd * t), rd, t);
     }
     return Sky(rd);
 }
