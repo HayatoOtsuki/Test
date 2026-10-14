@@ -25,6 +25,7 @@ enum class IceShape {
     Cube,      // プリミティブ: 立方体
     Sphere,    // プリミティブ: 球
     Cylinder,  // プリミティブ: 円柱
+    Sdf,       // SDF (符号付き距離場) の氷。 CPU で 3D テクスチャに焼き、 箱の中をレイマーチで描く
     Count      // 形の数 (いつも最後に置く。 for で全部の形を回すのに使う)
 };
 
