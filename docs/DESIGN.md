@@ -43,7 +43,8 @@ Test/
 │   │   ├── BackgroundPass.h / .cpp… 空と床を全画面に描く
 │   │   ├── ShaderCompiler.h / .cpp… HLSL のファイルをコンパイルする
 │   │   ├── DrawContext.h          … 描画に渡す物 (コマンドリスト・シーンの定数)
-│   │   ├── RenderEntity.h         … 毎フレーム描く物の基底クラス (IceImplement が継承)
+│   │   ├── RenderEntity.h         … 画面に描く物の基底クラス。 位置と、 Renderer から呼ばれる仮想関数 (IceComponent が継承)
+│   │   ├── Material.h             … 面の質感 (下地の色 Float4・金属・粗さ・鏡面反射の強さ)
 │   │   ├── DirectionalLight.h     … 平行光源 (太陽) の向き・色・強さ
 │   │   ├── SceneConstants.h       … シーンの定数 (カメラとライト)。 全部のシェーダーが b0 で読む
 │   │   ├── MathTypes.h            … 小さなベクトルと行列 (Float3 / Float4x4)
@@ -53,7 +54,7 @@ Test/
 │   │       ├── Environment.hlsli  … 空・床・表示用の変換 (氷のシェーダーも使う)
 │   │       └── Background.hlsl    … 背景の全画面シェーダー
 │   └── ice/                       … 氷の部品 (ここだけ見ればよい)
-│       ├── IceComponent.h / .cpp  … 外から使う窓口。 セッター・ゲッターだけ。 IceImplement を private に持つ
+│       ├── IceComponent.h / .cpp  … 外から使う窓口。 RenderEntity を継承。 形とマテリアルのセッター・ゲッターだけ。 IceImplement を private に持つ
 │       ├── IceImplement.h / .cpp  … 描く仕組み。 initialize・draw3D・reloadShaders、 パイプライン、 mGeom
 │       ├── IceGenerate.cpp        … IceImplement の形づくり (generateShape と各形)
 │       └── shaders/
@@ -79,14 +80,15 @@ sequenceDiagram
     participant Ice as IceComponent
     participant Impl as IceImplement
     Note over App,Impl: 起動のとき
-    App->>Ice: IceComponent(renderer, shaderDir)
-    Ice->>R: addEntity(mImplement)
-    R->>Impl: initialize(setup)
+    App->>R: addEntity(&ice)
+    R->>Ice: initializeImplement(setup)
+    Ice->>Impl: initialize(setup)
     Note over App,Impl: 毎フレーム
     App->>Ice: setShape / setRoughness など (入力があったとき)
-    App->>R: renderFrame(camera, time)
-    R->>R: クリア、 背景 (空と床) を描く
-    R->>Impl: draw3D(context)
+    App->>R: renderFrame(camera, light, time)
+    R->>R: シーンの定数を書く、 クリア、 背景 (空と床) を描く
+    R->>Ice: drawImplement(context)
+    Ice->>Impl: draw3D(context, getPosition())
     Impl->>Impl: 初回だけ generateShape()
     Impl->>Impl: mGeom[今の形] を描く
     R->>R: 実行 → Present → GPU を待つ
@@ -100,15 +102,16 @@ sequenceDiagram
 classDiagram
     direction LR
     class RenderEntity {
-        <<interface>>
-        +initialize(setup)
-        +draw3D(context)
-        +reloadShaders(error) bool
+        <<engine>>
+        +setPosition(p) / getPosition()
+        -initializeImplement(setup)*
+        -drawImplement(context)*
+        -reloadImplement(error)*
     }
     class IceComponent {
-        +IceComponent(renderer, shaderDir)
+        +IceComponent(shaderDir)
         +setShape(shape) / getShape()
-        +setPosition(p) / getPosition()
+        +setMaterial(m) / getMaterial()
         +setBaseColor(c) / setMetallic(m) / setRoughness(r) / setSpecular(s)
         +setRefractiveIndex(n) / getRefractiveIndex()
         +setAbsorptionColor(c) / getAbsorptionColor()
@@ -117,7 +120,7 @@ classDiagram
     }
     class IceImplement {
         +initialize(setup)
-        +draw3D(context)
+        +draw3D(context, position)
         +reloadShaders(error) bool
         +getParams() IceParams
         -generateShape(commandList)
@@ -128,14 +131,14 @@ classDiagram
         -mGeom[IceShape::Count] : IceGeometry
         -mParams : IceParams
     }
-    RenderEntity <|-- IceImplement
+    RenderEntity <|-- IceComponent
     IceComponent *-- IceImplement
 ```
 
 | ファイル | 中身 |
 | --- | --- |
-| `IceComponent.h / .cpp` | 外から使う窓口。 持つのは **セッター・ゲッターだけ** と、 private の `mImplement`。 作られたときに `mImplement` を Renderer に登録し、 壊れるときに外す |
-| `IceImplement.h / .cpp` | 描く仕組みの全部。 エンジンの `RenderEntity` を継承し、 `initialize` / `draw3D` / `reloadShaders` を Renderer から呼ばれる。 ルートシグネチャと PSO (メッシュ用・SDF 用)、 SDF の SRV ヒープ |
+| `IceComponent.h / .cpp` | 外から使う窓口。 エンジンの `RenderEntity` を継承するので、 位置は自動で持つ。 公開するのは **形とマテリアルのセッター・ゲッターだけ**。 Renderer から呼ばれる `RenderEntity` の仮想関数は private で override し、 private の `mImplement` へ渡す |
+| `IceImplement.h / .cpp` | 描く仕組みの全部。 `initialize` / `draw3D(context, position)` / `reloadShaders`、 ルートシグネチャと PSO (メッシュ用・SDF 用)、 SDF の SRV ヒープ |
 | `IceGenerate.cpp` | `IceImplement` の形づくりだけを分けたファイル。 `generateShape` / `generateCube` / `generateSphere` / `generateCylinder` / `generateSDF` |
 
 `IceShape` は形の種類 (`Cube`, `Sphere`, `Cylinder`, `Sdf`, `Count`)。 `mGeom` は `IceShape` を添え字にした配列。
@@ -193,7 +196,7 @@ SDF の箱は **裏面だけ** を描く (表面をカリング)。 カメラが
 | 番号 | 種類 | 中身 |
 | --- | --- | --- |
 | 0 | 定数バッファビュー (`b0`) | エンジンのシーンの定数 (`SceneConstants`: カメラとライト)。 エンジンが毎フレーム書いたものを、 そのまま読む |
-| 1 | 32 bit 定数 (`b1`) | 氷ごとの値: `Position`、 マテリアル (`BaseColor`, `Metallic`, `Roughness`, `Specular`)、 SDF の値 (`RefractiveIndex`, `AbsorptionColor`, `BubbleDensity`, `BoundsMin`, `BoundsMax`) |
+| 1 | 32 bit 定数 (`b1`) | 氷ごとの値: `Material` (`BaseColor` (float4), `Metallic`, `Roughness`, `Specular`)、 `Position` (`RenderEntity` の位置)、 SDF の値 (`RefractiveIndex`, `AbsorptionColor`, `BubbleDensity`, `BoundsMin`, `BoundsMax`) |
 | 2 | デスクリプターテーブル (`t0`) | SDF の 3D テクスチャ |
 | 静的サンプラー (`s0`) | 線形、 端で止める | |
 
@@ -235,11 +238,11 @@ flowchart TD
 | 値 | 既定 | 意味 |
 | --- | --- | --- |
 | 形 | `Cube` | `Cube` / `Sphere` / `Cylinder` / `Sdf` |
-| 下地の色 | (0.70, 0.85, 0.95) | プリミティブの色 |
+| 下地の色 | (0.70, 0.85, 0.95, 1.0) | プリミティブの色 (`Material.baseColor`、 Float4) |
 | 金属 | 0 | 0 = 金属でない、 1 = 金属 |
 | 粗さ | 0.3 | 0.04〜1 |
 | 鏡面反射の強さ | 0.5 | 金属でない面の F0 = 0.08 × 値 (0.5 で 4%) |
-| 位置 | (0, 0, 0) | 物体の原点 (底の中心) の位置 |
+| 位置 | (0, 0, 0) | 物体の原点 (底の中心) の位置。 `RenderEntity` の `setPosition` / `getPosition` |
 | 屈折率 | 1.31 | 氷 (空気は 1.0)。 F0 = ((n − 1) / (n + 1))² |
 | 吸収の色 | (0.45, 0.75, 0.90) | 厚さ 1 m を通った白がこの色になる。 σa = −ln(色) |
 | 気泡の密度 | 5.0 | 芯の濁りの強さ (1/m)。 0 で澄んだ氷 |
@@ -257,8 +260,9 @@ flowchart TD
 | `OrbitCamera` | 角度と距離。 ビュー・射影の行列を作る |
 | `GraphicsDevice` | デバイス・コマンドキュー・フェンス |
 | `SwapChain` / `DepthBuffer` | バックバッファと深度バッファ |
-| `Renderer` | `renderFrame`: クリア・背景 → 登録された物 (`RenderEntity`) の `draw3D` → 実行・表示・待つ。 `addEntity` / `removeEntity` で登録 |
-| `RenderEntity.h` | 毎フレーム描く物の基底クラス (`initialize` / `draw3D` / `reloadShaders`)。 氷の `IceImplement` が継承する |
+| `Renderer` | `renderFrame`: シーンの定数を書く・クリア・背景 → 登録された物 (`RenderEntity`) の `drawImplement` → 実行・表示・待つ。 `addEntity` / `removeEntity` で登録 |
+| `RenderEntity.h` | 画面に描く物の基底クラス。 位置 (`setPosition` / `getPosition`) と、 Renderer だけが呼ぶ private の仮想関数 (`initializeImplement` / `drawImplement` / `reloadImplement`)。 `IceComponent` が継承する |
+| `Material.h` | 面の質感の構造体 (`baseColor` は Float4、 `metallic` / `roughness` / `specular`) |
 | `BackgroundPass` | 空と床を全画面の三角形で描く |
 | `ShaderCompiler` | HLSL のファイルをコンパイルする (`D3DCompileFromFile`, SM 5.0) |
 | `MathTypes.h` | `Float3` / `Float4x4` と、 ビュー・射影・逆行列。 外部の数学ライブラリ (DirectXMath など) は使わない |
