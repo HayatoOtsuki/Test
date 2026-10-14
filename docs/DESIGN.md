@@ -43,6 +43,7 @@ Test/
 │   │   ├── BackgroundPass.h / .cpp… 空と床を全画面に描く
 │   │   ├── ShaderCompiler.h / .cpp… HLSL のファイルをコンパイルする
 │   │   ├── DrawContext.h          … 描画に渡す物 (コマンドリスト・シーンの定数)
+│   │   ├── RenderEntity.h         … 毎フレーム描く物の基底クラス (IceImplement が継承)
 │   │   ├── DirectionalLight.h     … 平行光源 (太陽) の向き・色・強さ
 │   │   ├── SceneConstants.h       … シーンの定数 (カメラとライト)。 全部のシェーダーが b0 で読む
 │   │   ├── MathTypes.h            … 小さなベクトルと行列 (Float3 / Float4x4)
@@ -52,8 +53,8 @@ Test/
 │   │       ├── Environment.hlsli  … 空・床・表示用の変換 (氷のシェーダーも使う)
 │   │       └── Background.hlsl    … 背景の全画面シェーダー
 │   └── ice/                       … 氷の部品 (ここだけ見ればよい)
-│       ├── IceComponent.h / .cpp  … 外から使う窓口。 セッター・ゲッター。 IceImplement を private に持つ
-│       ├── IceImplement.h / .cpp  … 実装。 draw3D、 パイプライン、 mGeom
+│       ├── IceComponent.h / .cpp  … 外から使う窓口。 セッター・ゲッターだけ。 IceImplement を private に持つ
+│       ├── IceImplement.h / .cpp  … 描く仕組み。 initialize・draw3D・reloadShaders、 パイプライン、 mGeom
 │       ├── IceGenerate.cpp        … IceImplement の形づくり (generateShape と各形)
 │       └── shaders/
 │           ├── IceCommon.hlsli    … 氷ごとの定数 (b1)・氷の値・Fresnel
@@ -77,14 +78,17 @@ sequenceDiagram
     participant R as Renderer
     participant Ice as IceComponent
     participant Impl as IceImplement
-    App->>R: beginFrame(camera)
-    R->>R: バックバッファと深度をクリア、 背景 (空と床) を描く
-    R-->>App: DrawContext
-    App->>Ice: draw3D(context)
-    Ice->>Impl: draw3D(context)
+    Note over App,Impl: 起動のとき
+    App->>Ice: IceComponent(renderer, shaderDir)
+    Ice->>R: addEntity(mImplement)
+    R->>Impl: initialize(setup)
+    Note over App,Impl: 毎フレーム
+    App->>Ice: setShape / setRoughness など (入力があったとき)
+    App->>R: renderFrame(camera, time)
+    R->>R: クリア、 背景 (空と床) を描く
+    R->>Impl: draw3D(context)
     Impl->>Impl: 初回だけ generateShape()
     Impl->>Impl: mGeom[今の形] を描く
-    App->>R: endFrame()
     R->>R: 実行 → Present → GPU を待つ
 ```
 
@@ -95,10 +99,14 @@ sequenceDiagram
 ```mermaid
 classDiagram
     direction LR
-    class IceComponent {
-        +initialize(device, colorFormat, depthFormat, shaderDir)
+    class RenderEntity {
+        <<interface>>
+        +initialize(setup)
         +draw3D(context)
         +reloadShaders(error) bool
+    }
+    class IceComponent {
+        +IceComponent(renderer, shaderDir)
         +setShape(shape) / getShape()
         +setPosition(p) / getPosition()
         +setBaseColor(c) / setMetallic(m) / setRoughness(r) / setSpecular(s)
@@ -108,30 +116,33 @@ classDiagram
         -mImplement : unique_ptr~IceImplement~
     }
     class IceImplement {
+        +initialize(setup)
         +draw3D(context)
+        +reloadShaders(error) bool
+        +getParams() IceParams
         -generateShape(commandList)
         -generateCube() IceGeometry
         -generateSphere() IceGeometry
         -generateCylinder() IceGeometry
         -generateSDF(commandList) IceGeometry
         -mGeom[IceShape::Count] : IceGeometry
-        -mShape : IceShape
         -mParams : IceParams
     }
+    RenderEntity <|-- IceImplement
     IceComponent *-- IceImplement
 ```
 
 | ファイル | 中身 |
 | --- | --- |
-| `IceComponent.h / .cpp` | 外から使う窓口。 形と氷の値のセッター・ゲッター、 `draw3D` と `initialize` を `IceImplement` へ渡す。 実装は `mImplement` (private) に隠す |
-| `IceImplement.h / .cpp` | ルートシグネチャと PSO (メッシュ用・SDF 用)、 SDF の SRV ヒープ、 `draw3D` |
+| `IceComponent.h / .cpp` | 外から使う窓口。 持つのは **セッター・ゲッターだけ** と、 private の `mImplement`。 作られたときに `mImplement` を Renderer に登録し、 壊れるときに外す |
+| `IceImplement.h / .cpp` | 描く仕組みの全部。 エンジンの `RenderEntity` を継承し、 `initialize` / `draw3D` / `reloadShaders` を Renderer から呼ばれる。 ルートシグネチャと PSO (メッシュ用・SDF 用)、 SDF の SRV ヒープ |
 | `IceGenerate.cpp` | `IceImplement` の形づくりだけを分けたファイル。 `generateShape` / `generateCube` / `generateSphere` / `generateCylinder` / `generateSDF` |
 
 `IceShape` は形の種類 (`Cube`, `Sphere`, `Cylinder`, `Sdf`, `Count`)。 `mGeom` は `IceShape` を添え字にした配列。
 
 ### 形づくり (`generateShape`)
 
-`draw3D` の最初の呼び出しで 1 回だけ、 全部の形を作って `mGeom` に入れる。
+`IceImplement::draw3D` の最初の呼び出しで 1 回だけ、 全部の形を作って `mGeom` に入れる。
 
 ```cpp
 void IceImplement::generateShape(ID3D12GraphicsCommandList* commandList)
@@ -246,7 +257,8 @@ flowchart TD
 | `OrbitCamera` | 角度と距離。 ビュー・射影の行列を作る |
 | `GraphicsDevice` | デバイス・コマンドキュー・フェンス |
 | `SwapChain` / `DepthBuffer` | バックバッファと深度バッファ |
-| `Renderer` | `beginFrame` (クリア・背景) と `endFrame` (実行・表示・待つ) |
+| `Renderer` | `renderFrame`: クリア・背景 → 登録された物 (`RenderEntity`) の `draw3D` → 実行・表示・待つ。 `addEntity` / `removeEntity` で登録 |
+| `RenderEntity.h` | 毎フレーム描く物の基底クラス (`initialize` / `draw3D` / `reloadShaders`)。 氷の `IceImplement` が継承する |
 | `BackgroundPass` | 空と床を全画面の三角形で描く |
 | `ShaderCompiler` | HLSL のファイルをコンパイルする (`D3DCompileFromFile`, SM 5.0) |
 | `MathTypes.h` | `Float3` / `Float4x4` と、 ビュー・射影・逆行列。 外部の数学ライブラリ (DirectXMath など) は使わない |

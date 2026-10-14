@@ -4,8 +4,8 @@
 //
 //   Window      : 入力を受け取る → カメラへ渡す
 //   OrbitCamera : 角度と距離を持つ
-//   Renderer    : フレームの始まり (背景) と終わり (表示) を受け持つ
-//   IceComponent: 氷の部品。 beginFrame と endFrame の間に draw3D を呼ぶ
+//   Renderer    : 1 フレームの描画 (背景と、 登録された物)
+//   IceComponent: 氷の部品。 作ると Renderer に描画が登録され、 以後 Renderer が毎フレーム描く
 // =============================================================================
 
 #include "OrbitCamera.h"
@@ -31,6 +31,6 @@ private:
     Window mWindow;
     OrbitCamera mCamera;
     Renderer mRenderer;
-    IceComponent mIce;  // Renderer の後に作り、 先に壊す (GPU のリソースを持つため)
+    IceComponent mIce;  // Renderer の後に作り、 先に壊す (壊れるときに Renderer から登録を外すため)
     bool mReloadRequested = false;  // R キーが押された。 次のフレームの前にシェーダーを読み直す
 };

@@ -27,6 +27,7 @@ constexpr float kMaterialStep = 0.1f;  // [ ] , . で値を変える幅
 Application::Application(HINSTANCE instance)
     : mWindow(instance, L"SDF Ice", kInitialWidth, kInitialHeight)
     , mRenderer(mWindow.getHandle(), mWindow.getWidth(), mWindow.getHeight(), L"" SHADER_ROOT L"/engine/shaders")
+    , mIce(mRenderer, L"" SHADER_ROOT L"/ice/shaders")  // ここで氷の描画が Renderer に登録される
 {
     // ウィンドウの入力をカメラとキーの処理へつなぐ
     Window::Callbacks callbacks;
@@ -36,10 +37,7 @@ Application::Application(HINSTANCE instance)
     callbacks.onKeyDown = [this](WPARAM key) { onKeyDown(key); };
     mWindow.setCallbacks(std::move(callbacks));
 
-    // 氷の部品の準備。 描画先の形式と、 氷のシェーダーのフォルダを渡す
-    mIce.initialize(mRenderer.getGraphicsDevice().getDevice(), mRenderer.getColorFormat(), mRenderer.getDepthFormat(),
-                    L"" SHADER_ROOT L"/ice/shaders");
-    setShape(mIce.getShape());
+    updateTitle();
 }
 
 void Application::setShape(IceShape shape)
@@ -100,9 +98,9 @@ void Application::onKeyDown(WPARAM key)
 
 void Application::reloadShaders()
 {
-    // Renderer::reloadShaders が GPU を待つので、 氷の PSO もその後なら差し替えてよい
+    // 背景と、 登録された物 (氷) のシェーダーをまとめて読み直す
     std::string error;
-    if (!mRenderer.reloadShaders(error) || !mIce.reloadShaders(error)) {
+    if (!mRenderer.reloadShaders(error)) {
         MessageBoxA(mWindow.getHandle(), error.c_str(), "Shader error", MB_ICONERROR);
     }
 }
@@ -131,9 +129,7 @@ int Application::run(int showCommand)
         mRenderer.resize(mWindow.getWidth(), mWindow.getHeight());
         mCamera.update(dt);
 
-        const DrawContext context = mRenderer.beginFrame(mCamera, time);  // 背景まで描く
-        mIce.draw3D(context);
-        mRenderer.endFrame();
+        mRenderer.renderFrame(mCamera, time);  // 背景と氷を描いて表示する
     }
     return 0;
 }

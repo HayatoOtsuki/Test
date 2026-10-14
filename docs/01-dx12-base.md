@@ -10,7 +10,7 @@
 | ファイル | 役目 |
 | --- | --- |
 | `src/main.cpp` | 入口。 `Application` を作って回し、 例外をメッセージボックスで見せる |
-| `Application` | 部品をつなぐ。 入力 → カメラ、 毎フレーム `beginFrame` → (部品の `draw3D`) → `endFrame` |
+| `Application` | 部品をつなぐ。 入力 → カメラ、 毎フレーム `renderFrame` |
 | `Window` | ウィンドウとメッセージ。 入力を関数 (コールバック) で知らせる |
 | `OrbitCamera` | 角度と距離。 位置・ビュー行列・射影行列を作る |
 | `GraphicsDevice` | デバイス・コマンドキュー・フェンス (`waitForGpu`) |
@@ -20,6 +20,7 @@
 | `ShaderCompiler` | HLSL のファイルを実行時にコンパイル (R キーで読み直し) |
 | `MathTypes.h` | `Float3` / `Float4x4` とカメラの行列 |
 | `DrawContext.h` | 部品の `draw3D` へ渡す物 |
+| `RenderEntity.h` | 毎フレーム描く物の基底クラス。 `Renderer::addEntity` で登録すると、 `draw3D` が毎フレーム呼ばれる |
 
 ## 1 フレームの流れ
 
@@ -28,13 +29,13 @@
 ```cpp
 while (mWindow.processMessages()) {
     // ... 経過時間、 シェーダーの読み直し、 大きさの変更、 カメラの更新 ...
-    mRenderer.beginFrame(mCamera, time);  // 背景まで描く
-    mRenderer.endFrame();
+    mRenderer.renderFrame(mCamera, time);  // 背景と、 登録された物を描いて表示する
 }
 ```
 
 - `processMessages` はたまっている入力を全部処理し、 ウィンドウが閉じたら `false` を返す。
-- `beginFrame` と `endFrame` の間に、 次の段 (`feature/ice-component`) で `IceComponent::draw3D` を呼ぶ。
+- `renderFrame` は `beginFrame` → 登録された物 (`RenderEntity`) の `draw3D` → `endFrame` の順に呼ぶ。
+  氷の描画 (`IceImplement`) は `IceComponent` が作られたときに登録される (`docs/03-ice-component.md`)。
 
 `beginFrame` の中身:
 
