@@ -121,19 +121,24 @@ void IceImplement::createRootSignature()
 
 bool IceImplement::buildPipelines(std::string& error)
 {
-    // 2 つとも作れたときだけ差し替える。 読み直しに失敗しても、 前の PSO で描き続けられる
-    ComPtr<ID3D12PipelineState> mesh, sdf;
+    // 全部作れたときだけ差し替える。 読み直しに失敗しても、 前の PSO で描き続けられる
+    ComPtr<ID3D12PipelineState> mesh, sdf, shadow;
     // プリミティブ: 裏面をカリング (表面だけ描く)。 深度に書く
-    if (!createPipeline(mShaderDir + L"/IceMesh.hlsl", D3D12_CULL_MODE_BACK, true, mesh, error)) return false;
+    if (!createPipeline(mShaderDir + L"/IceMesh.hlsl", D3D12_CULL_MODE_BACK, true, true, mesh, error)) return false;
     // SDF: 箱の表面をカリングして裏面だけ描く (カメラが箱の中に入っても描けるように)。
     //      深度には書かない (箱の面の深さは氷の表面の深さではないため)
-    if (!createPipeline(mShaderDir + L"/IceSdf.hlsl", D3D12_CULL_MODE_FRONT, false, sdf, error)) return false;
+    if (!createPipeline(mShaderDir + L"/IceSdf.hlsl", D3D12_CULL_MODE_FRONT, false, true, sdf, error)) return false;
+    // 影: 床の四角形 (頂点は VS が番号から作る)。 裏表は気にしない。 深度には書かない
+    if (!createPipeline(mShaderDir + L"/IceShadow.hlsl", D3D12_CULL_MODE_NONE, false, false, shadow, error)) {
+        return false;
+    }
     mMeshPipeline = mesh;
     mSdfPipeline = sdf;
+    mShadowPipeline = shadow;
     return true;
 }
 
-bool IceImplement::createPipeline(const std::wstring& file, D3D12_CULL_MODE cull, bool depthWrite,
+bool IceImplement::createPipeline(const std::wstring& file, D3D12_CULL_MODE cull, bool depthWrite, bool vertexInput,
                                   ComPtr<ID3D12PipelineState>& pipeline, std::string& error)
 {
     // 1. シェーダーをコンパイルする
@@ -157,7 +162,9 @@ bool IceImplement::createPipeline(const std::wstring& file, D3D12_CULL_MODE cull
     desc.pRootSignature = mRootSignature.Get();
     desc.VS = { vs->GetBufferPointer(), vs->GetBufferSize() };
     desc.PS = { ps->GetBufferPointer(), ps->GetBufferSize() };
-    desc.InputLayout = { inputLayout, static_cast<UINT>(sizeof(inputLayout) / sizeof(inputLayout[0])) };
+    if (vertexInput) {
+        desc.InputLayout = { inputLayout, static_cast<UINT>(sizeof(inputLayout) / sizeof(inputLayout[0])) };
+    }
 
     // ブレンドしない (上書き)。 BlendEnable は FALSE だが、 列挙の値は 0 だと不正なので正しい値を入れる
     D3D12_RENDER_TARGET_BLEND_DESC& blend = desc.BlendState.RenderTarget[0];
@@ -238,13 +245,18 @@ void IceImplement::draw3D(const DrawContext& context, const Float3& position)
     commandList->SetPipelineState(geom.isSdf ? mSdfPipeline.Get() : mMeshPipeline.Get());
     commandList->SetGraphicsRootConstantBufferView(kRootScene, context.sceneConstants);
     commandList->SetGraphicsRoot32BitConstants(kRootObject, sizeof(object) / 4, &object, 0);
+    commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     if (geom.isSdf) {
         // SDF の 3D テクスチャ: ヒープをコマンドリストに設定し、 テーブル (t0) にヒープの先頭を指させる
         ID3D12DescriptorHeap* heaps[] = { mSrvHeap.Get() };
         commandList->SetDescriptorHeaps(1, heaps);
         commandList->SetGraphicsRootDescriptorTable(kRootSdf, mSrvHeap->GetGPUDescriptorHandleForHeapStart());
+
+        // 先に影 (床の四角形、 頂点 6 個) を描く。 氷はその後に上から描くので、 氷の画素が影より手前に出る
+        commandList->SetPipelineState(mShadowPipeline.Get());
+        commandList->DrawInstanced(6, 1, 0, 0);
+        commandList->SetPipelineState(mSdfPipeline.Get());
     }
-    commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->IASetVertexBuffers(0, 1, &geom.vertexView);
     commandList->IASetIndexBuffer(&geom.indexView);
     commandList->DrawIndexedInstanced(geom.indexCount, 1, 0, 0, 0);
