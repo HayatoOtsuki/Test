@@ -20,7 +20,8 @@
 | `ShaderCompiler` | HLSL のファイルを実行時にコンパイル (R キーで読み直し) |
 | `MathTypes.h` | `Float3` / `Float4x4` とカメラの行列 |
 | `DrawContext.h` | 部品の `draw3D` へ渡す物 |
-| `RenderEntity.h` | 毎フレーム描く物の基底クラス。 `Renderer::addEntity` で登録すると、 `draw3D` が毎フレーム呼ばれる |
+| `RenderEntity.h` | 画面に描く物の基底クラス。 位置を持ち、 `Renderer::addEntity` で登録すると `drawImplement` が毎フレーム呼ばれる |
+| `Material.h` | 面の質感 (下地の色 `Float4`・金属・粗さ・鏡面反射の強さ) |
 
 ## 1 フレームの流れ
 
@@ -29,13 +30,13 @@
 ```cpp
 while (mWindow.processMessages()) {
     // ... 経過時間、 シェーダーの読み直し、 大きさの変更、 カメラの更新 ...
-    mRenderer.renderFrame(mCamera, time);  // 背景と、 登録された物を描いて表示する
+    mRenderer.renderFrame(mCamera, mSun, time);  // 背景と、 登録された物を描いて表示する
 }
 ```
 
 - `processMessages` はたまっている入力を全部処理し、 ウィンドウが閉じたら `false` を返す。
-- `renderFrame` は `beginFrame` → 登録された物 (`RenderEntity`) の `draw3D` → `endFrame` の順に呼ぶ。
-  氷の描画 (`IceImplement`) は `IceComponent` が作られたときに登録される (`docs/03-ice-component.md`)。
+- `renderFrame` は `beginFrame` → 登録された物 (`RenderEntity`) の `drawImplement` → `endFrame` の順に呼ぶ。
+  氷 (`IceComponent` は `RenderEntity` を継承) は `Application` が `addEntity` で登録する (`docs/03-ice-component.md`)。
 
 `beginFrame` の中身:
 

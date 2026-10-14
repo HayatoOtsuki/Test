@@ -39,6 +39,13 @@ inline Float3 cross(Float3 a, Float3 b)
 
 inline Float3 normalize(Float3 a) { return a * (1.0f / std::sqrt(dot(a, a))); }
 
+struct Float4 {
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+    float w = 0.0f;
+};
+
 struct Float4x4 {
     float m[4][4] = {};
 };

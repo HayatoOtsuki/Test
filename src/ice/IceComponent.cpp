@@ -1,31 +1,56 @@
 // =============================================================================
 // IceComponent.cpp — 窓口の中身
 //
-// 作るときに IceImplement を Renderer に登録し、 壊すときに外す。
 // セッター・ゲッターは IceImplement の値 (IceParams) を読み書きする。
+// Renderer から呼ばれる 3 つの関数は、 IceImplement へ渡すだけ (位置は RenderEntity から渡す)。
 // =============================================================================
 
 #include "IceComponent.h"
 
 #include "IceImplement.h"
 
-#include "engine/Renderer.h"
-
 #include <algorithm>
 
-IceComponent::IceComponent(Renderer& renderer, const std::wstring& shaderDir)
-    : mRenderer(renderer), mImplement(std::make_unique<IceImplement>(shaderDir))
+namespace {
+
+// マテリアルの値を、 シェーダーで困らない範囲に収める
+Material clampMaterial(const Material& m)
 {
-    // 登録すると、 renderer が mImplement の initialize (パイプラインを作る) を呼び、
-    // 以後、 毎フレーム draw3D を呼ぶ
-    mRenderer.addEntity(mImplement.get());
+    Material r = m;
+    r.baseColor = { std::clamp(m.baseColor.x, 0.0f, 1.0f), std::clamp(m.baseColor.y, 0.0f, 1.0f),
+                    std::clamp(m.baseColor.z, 0.0f, 1.0f), std::clamp(m.baseColor.w, 0.0f, 1.0f) };
+    r.metallic = std::clamp(m.metallic, 0.0f, 1.0f);
+    r.roughness = std::clamp(m.roughness, 0.04f, 1.0f);  // 0 だと GGX の分布が 1 点に集まり、 ハイライトが消える
+    r.specular = std::clamp(m.specular, 0.0f, 1.0f);
+    return r;
 }
 
-IceComponent::~IceComponent()
+} // namespace
+
+IceComponent::IceComponent(const std::wstring& shaderDir) : mImplement(std::make_unique<IceImplement>(shaderDir))
 {
-    // mImplement が壊れる前に、 renderer の一覧から外す (外さないと壊れた物を描こうとする)
-    mRenderer.removeEntity(mImplement.get());
 }
+
+IceComponent::~IceComponent() = default;
+
+// ---- RenderEntity ----
+
+void IceComponent::initializeImplement(const RenderSetup& setup)
+{
+    mImplement->initialize(setup);
+}
+
+void IceComponent::drawImplement(const DrawContext& context)
+{
+    mImplement->draw3D(context, getPosition());  // 位置は RenderEntity が持っている
+}
+
+bool IceComponent::reloadImplement(std::string& error)
+{
+    return mImplement->reloadShaders(error);
+}
+
+// ---- 形 ----
 
 void IceComponent::setShape(IceShape shape)
 {
@@ -39,53 +64,62 @@ IceShape IceComponent::getShape() const
     return mImplement->getParams().shape;
 }
 
-void IceComponent::setPosition(const Float3& position)
+// ---- マテリアル ----
+
+void IceComponent::setMaterial(const Material& material)
 {
-    mImplement->getParams().position = position;
+    mImplement->getParams().material = clampMaterial(material);
 }
 
-Float3 IceComponent::getPosition() const
+const Material& IceComponent::getMaterial() const
 {
-    return mImplement->getParams().position;
+    return mImplement->getParams().material;
 }
 
-void IceComponent::setBaseColor(const Float3& color)
+void IceComponent::setBaseColor(const Float4& color)
 {
-    mImplement->getParams().baseColor = { std::clamp(color.x, 0.0f, 1.0f), std::clamp(color.y, 0.0f, 1.0f),
-                                          std::clamp(color.z, 0.0f, 1.0f) };
+    Material m = getMaterial();
+    m.baseColor = color;
+    setMaterial(m);
 }
 
-Float3 IceComponent::getBaseColor() const
+const Float4& IceComponent::getBaseColor() const
 {
-    return mImplement->getParams().baseColor;
+    return getMaterial().baseColor;
 }
 
 void IceComponent::setMetallic(float metallic)
 {
-    mImplement->getParams().metallic = std::clamp(metallic, 0.0f, 1.0f);
+    Material m = getMaterial();
+    m.metallic = metallic;
+    setMaterial(m);
 }
 
 float IceComponent::getMetallic() const
 {
-    return mImplement->getParams().metallic;
+    return getMaterial().metallic;
 }
 
 void IceComponent::setRoughness(float roughness)
 {
-    mImplement->getParams().roughness = std::clamp(roughness, 0.04f, 1.0f);
+    Material m = getMaterial();
+    m.roughness = roughness;
+    setMaterial(m);
 }
 
 float IceComponent::getRoughness() const
 {
-    return mImplement->getParams().roughness;
+    return getMaterial().roughness;
 }
 
 void IceComponent::setSpecular(float specular)
 {
-    mImplement->getParams().specular = std::clamp(specular, 0.0f, 1.0f);
+    Material m = getMaterial();
+    m.specular = specular;
+    setMaterial(m);
 }
 
 float IceComponent::getSpecular() const
 {
-    return mImplement->getParams().specular;
+    return getMaterial().specular;
 }

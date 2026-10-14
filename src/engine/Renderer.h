@@ -4,7 +4,7 @@
 //
 // renderFrame の中身:
 //   1. beginFrame: 記録を始め、 バックバッファと深度をクリアして背景 (空と床) を描く
-//   2. 登録された物 (RenderEntity) の draw3D を順に呼ぶ
+//   2. 登録された物 (RenderEntity) の drawImplement を順に呼ぶ
 //   3. endFrame  : 記録を閉じて GPU へ送り、 表示して、 GPU が終えるのを待つ
 // =============================================================================
 
@@ -33,7 +33,7 @@ public:
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
 
-    // 描く物を登録する。 ここで entity->initialize を呼び、 以後毎フレーム entity->draw3D を呼ぶ
+    // 描く物を登録する。 ここで entity の initializeImplement を呼び、 以後毎フレーム drawImplement を呼ぶ
     void addEntity(RenderEntity* entity);
     // 登録を外す (描く物が壊れる前に呼ぶ)
     void removeEntity(RenderEntity* entity);

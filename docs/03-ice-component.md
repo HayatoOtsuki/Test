@@ -13,21 +13,25 @@
 classDiagram
     direction LR
     class RenderEntity {
-        <<interface>>
-        +initialize(setup)
-        +draw3D(context)
-        +reloadShaders(error)
+        <<engine>>
+        +setPosition(p) / getPosition()
+        -initializeImplement(setup)*
+        -drawImplement(context)*
+        -reloadImplement(error)*
     }
     class IceComponent {
-        +IceComponent(renderer, shaderDir)
+        +IceComponent(shaderDir)
         +setShape() / getShape()
-        +setPosition() / getPosition()
+        +setMaterial() / getMaterial()
         +setBaseColor() / setMetallic() / setRoughness() / setSpecular()
+        -initializeImplement(setup)
+        -drawImplement(context)
+        -reloadImplement(error)
         -mImplement : unique_ptr~IceImplement~
     }
     class IceImplement {
         +initialize(setup)
-        +draw3D(context)
+        +draw3D(context, position)
         +reloadShaders(error)
         +getParams() IceParams
         -createRootSignature()
@@ -36,84 +40,126 @@ classDiagram
         -generateCube() / generateSphere() / generateCylinder()
         -mGeom[IceShape::Count]
     }
-    RenderEntity <|-- IceImplement
+    RenderEntity <|-- IceComponent
     IceComponent *-- IceImplement
 ```
 
 | ファイル | 中身 | なぜ分けるか |
 | --- | --- | --- |
-| `IceComponent.h / .cpp` | 外から使う窓口。 **セッター・ゲッターだけ** | 使う側が読むのはこのヘッダーだけ。 DirectX 12 の細かい物を見せない |
-| `IceImplement.h / .cpp` | `initialize` / `draw3D` / `reloadShaders`、 ルートシグネチャ・PSO | 描く仕組みの全部。 Renderer から呼ばれる |
+| `IceComponent.h / .cpp` | 外から使う窓口。 エンジンの `RenderEntity` を継承。 公開するのは **形とマテリアルのセッター・ゲッターだけ** (位置は `RenderEntity` から) | 使う側が読むのはこのヘッダーだけ。 DirectX 12 の細かい物を見せない |
+| `IceImplement.h / .cpp` | `initialize` / `draw3D` / `reloadShaders`、 ルートシグネチャ・PSO | 描く仕組みの全部 |
 | `IceGenerate.cpp` | `generateShape` と各形 | 形づくりは長くなるので、 `IceImplement` のメンバー関数のうち形の分だけを別のファイルに書く |
+
+### RenderEntity を継承する
+
+`RenderEntity` はエンジンの 「画面に描く物」 の基底クラス。 継承すると:
+
+- **位置** (`setPosition` / `getPosition`) を自動で持つ。 だから `IceComponent` には位置のセッター・ゲッターを書かない。
+- `Renderer::addEntity` で登録でき、 Renderer が次の 3 つの仮想関数を呼ぶ。
+
+| 仮想関数 | いつ | IceComponent での中身 |
+| --- | --- | --- |
+| `initializeImplement(setup)` | 登録のとき 1 回 | `mImplement->initialize(setup)` |
+| `drawImplement(context)` | 毎フレーム、 背景の後 | `mImplement->draw3D(context, getPosition())` |
+| `reloadImplement(error)` | R キー | `mImplement->reloadShaders(error)` |
+
+```cpp
+class RenderEntity {
+public:
+    void setPosition(const Float3& position);
+    const Float3& getPosition() const;
+private:
+    friend class Renderer;  // 下の仮想関数を呼べるのは Renderer だけ
+    virtual void initializeImplement(const RenderSetup& setup) = 0;
+    virtual void drawImplement(const DrawContext& context) = 0;
+    virtual bool reloadImplement(std::string& error) = 0;
+    Float3 mPosition;
+};
+```
+
+**仮想関数を private にする理由**: ゲームの側が `ice.drawImplement(...)` のように勝手に呼べないようにするため。
+C++ では、 private の仮想関数でも派生クラスで override でき、 基底クラスの `friend` (ここでは `Renderer`) から呼べる。
+`IceComponent` も private のまま override するので、 `IceComponent` を使う側から見えるのはセッター・ゲッターだけになる。
 
 ### 実装を private に隠す (pImpl)
 
 ```cpp
-class IceComponent {
+class IceComponent : public RenderEntity {
 public:
-    IceComponent(Renderer& renderer, const std::wstring& shaderDir);
-    ~IceComponent();
-    // セッター・ゲッターだけ
+    explicit IceComponent(const std::wstring& shaderDir);
+    ~IceComponent() override;
+    // 形とマテリアルのセッター・ゲッターだけ
     ...
 private:
-    Renderer& mRenderer;
+    void initializeImplement(const RenderSetup& setup) override;
+    void drawImplement(const DrawContext& context) override;
+    bool reloadImplement(std::string& error) override;
+
     std::unique_ptr<IceImplement> mImplement;
 };
 ```
 
 - `IceComponent.h` は `IceImplement` を **前方宣言** (`class IceImplement;`) するだけで、 中身を `#include` しない。
-  エンジンが `IceComponent.h` を読んでも、 `d3d12.h` の細かい型 (バッファ・PSO) は見えない。
+  使う側が `IceComponent.h` を読んでも、 `d3d12.h` の細かい型 (バッファ・PSO) は見えない。
 - `std::unique_ptr` で持つと、 `IceComponent` が壊れるときに `IceImplement` も自動で壊れる。
 - デストラクターを `.cpp` に書く (`IceComponent::~IceComponent() = default;`) のは、
   `unique_ptr` が `IceImplement` を壊すには `IceImplement` の中身 (完全な型) が要るため。 ヘッダーで書くとコンパイルできない。
 
-### 描画は Renderer から IceImplement へ直接
-
-`IceComponent` は描画の関数 (`draw3D` など) を持たない。 代わりに、 作られたときに `IceImplement` を Renderer に登録する。
+### 登録と 1 フレームの流れ
 
 ```cpp
-IceComponent::IceComponent(Renderer& renderer, const std::wstring& shaderDir)
-    : mRenderer(renderer), mImplement(std::make_unique<IceImplement>(shaderDir))
-{
-    mRenderer.addEntity(mImplement.get());
-}
+// Application のコンストラクター
+mIce.setPosition({ 0.0f, 0.0f, 0.0f });  // RenderEntity のセッター
+mRenderer.addEntity(&mIce);              // ここで initializeImplement → IceImplement::initialize
 
-IceComponent::~IceComponent()
-{
-    mRenderer.removeEntity(mImplement.get());
-}
+// Application のデストラクター (mIce が壊れる前に外す)
+mRenderer.removeEntity(&mIce);
 ```
-
-- `IceImplement` はエンジンの基底クラス `RenderEntity` を継承し、 `initialize` / `draw3D` / `reloadShaders` を **override** する。
-- Renderer は登録された物の一覧を持ち、 登録のときに `initialize`、 毎フレーム背景の後に `draw3D`、 R キーで `reloadShaders` を呼ぶ。
-  Renderer から見えるのは `RenderEntity` (仮想関数の表) だけなので、 氷のことは知らない。
-- 壊すときは、 `mImplement` が壊れる **前に** 一覧から外す。 外さないと、 Renderer が壊れた物を描こうとする。
-- 自分のエンジンでは、 `RenderEntity` と `addEntity` を、 エンジンの 「毎フレーム描く物」 の基底クラスと登録の仕組みに置き換える。
 
 ```mermaid
 sequenceDiagram
     participant App as Application
-    participant Ice as IceComponent
     participant R as Renderer
+    participant Ice as IceComponent
     participant Impl as IceImplement
-    App->>Ice: IceComponent(renderer, shaderDir)
-    Ice->>R: addEntity(mImplement)
-    R->>Impl: initialize(setup)
+    App->>R: addEntity(&ice)
+    R->>Ice: initializeImplement(setup)
+    Ice->>Impl: initialize(setup)
     loop 毎フレーム
         App->>Ice: setShape / setRoughness (入力があれば)
-        App->>R: renderFrame(camera, time)
-        R->>Impl: draw3D(context)
+        App->>R: renderFrame(camera, light, time)
+        R->>Ice: drawImplement(context)
+        Ice->>Impl: draw3D(context, getPosition())
     end
 ```
 
+- Renderer から見えるのは `RenderEntity` だけなので、 Renderer は氷のことを知らない。
+- 壊すときは、 `mIce` が壊れる **前に** 一覧から外す。 外さないと、 Renderer が壊れた物を描こうとする。
+- 自分のエンジンでは、 `RenderEntity` と `addEntity` が、 エンジンの 「描く物」 の基底クラスと登録の仕組みに当たる。
+
 ### セッター・ゲッター
 
-値は `IceImplement` の `IceParams` に置き、 `IceComponent` のセッター・ゲッターが読み書きする。
+形とマテリアルは `IceImplement` の `IceParams` に置き、 `IceComponent` のセッター・ゲッターが読み書きする。
+マテリアルは `Material` 構造体 (エンジンの `Material.h`) にまとめてある。
+
+```cpp
+struct Material {
+    Float4 baseColor = { 1.0f, 1.0f, 1.0f, 1.0f };  // 下地の色 (RGBA)
+    float metallic = 0.0f;
+    float roughness = 0.5f;
+    float specular = 0.5f;
+};
+```
+
+まとめて変える `setMaterial` と、 1 つずつ変える `setBaseColor` / `setMetallic` / `setRoughness` / `setSpecular` がある。
+どれも最後は `setMaterial` を通り、 **範囲に収めてから** 入れる。
 
 ```cpp
 void IceComponent::setRoughness(float roughness)
 {
-    mImplement->getParams().roughness = std::clamp(roughness, 0.04f, 1.0f);
+    Material m = getMaterial();
+    m.roughness = roughness;
+    setMaterial(m);  // ここで clampMaterial を通す
 }
 ```
 
@@ -131,7 +177,7 @@ void IceComponent::setRoughness(float roughness)
 ## 2. draw3D と generateShape
 
 ```cpp
-void IceImplement::draw3D(const DrawContext& context)
+void IceImplement::draw3D(const DrawContext& context, const Float3& position)
 {
     // 1. 最初の 1 回だけ、 全部の形を作って mGeom に入れる (IceGenerate.cpp)
     if (!mGenerated) {
@@ -298,8 +344,8 @@ geom.indexBuffer = createUploadBuffer(mDevice, indices.data(), indexBytes);
 
 | 番号 | 種類 | 中身 |
 | --- | --- | --- |
-| 0 | 32 bit 定数 20 個 (`b0`) | `ViewProj` (16)、 `CameraPos` (3)、 `Time` (1) |
-| 1 | 32 bit 定数 12 個 (`b1`) | `Position`, `Metallic`, `BaseColor`, `Roughness`, `Specular` |
+| 0 | 定数バッファビュー (`b0`) | エンジンのシーンの定数 (カメラとライト)。 `docs/04-camera-light.md` |
+| 1 | 32 bit 定数 12 個 (`b1`) | `Material` (`BaseColor`, `Metallic`, `Roughness`, `Specular`) と `Position` |
 
 **ルート定数** は、 定数バッファのリソースを作らずに、 コマンドリストへ値を直接積む仕組み (`SetGraphicsRoot32BitConstants`)。 小さな値を毎回変えるのに向く。
 
@@ -311,16 +357,17 @@ HLSL の定数は **16 バイト (float 4 個) ずつの区切り** に並ぶ。
 ```hlsl
 cbuffer IceObject : register(b1)
 {
-    float3 Position;   // [0] x y z
-    float  Metallic;   // [0] w
-    float3 BaseColor;  // [1] x y z
-    float  Roughness;  // [1] w
-    float  Specular;   // [2] x
-    float3 ObjectPad;  // [2] y z w
+    float4 BaseColor;    // [0] x y z w   (Material.baseColor)
+    float  Metallic;     // [1] x
+    float  Roughness;    // [1] y
+    float  Specular;     // [1] z
+    float  ObjectPad0;   // [1] w         (Material は 28 バイトなので、 ここで 32 バイトにそろえる)
+    float3 Position;     // [2] x y z     (RenderEntity の位置)
+    float  ObjectPad1;   // [2] w
 };
 ```
 
-CPU 側 (`IceObjectConstants`) も同じ順に並べ、 `static_assert` で大きさを確かめる。
+CPU 側 (`IceObjectConstants`) も同じ順 (`Material`、 詰め物、 位置、 詰め物) に並べ、 `static_assert` で大きさを確かめる。
 
 ### パイプライン (PSO) の設定
 

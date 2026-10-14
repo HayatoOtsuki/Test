@@ -36,7 +36,7 @@ Float3 rotateY(Float3 d, float angle)
 Application::Application(HINSTANCE instance)
     : mWindow(instance, L"SDF Ice", kInitialWidth, kInitialHeight)
     , mRenderer(mWindow.getHandle(), mWindow.getWidth(), mWindow.getHeight(), L"" SHADER_ROOT L"/engine/shaders")
-    , mIce(mRenderer, L"" SHADER_ROOT L"/ice/shaders")  // ここで氷の描画が Renderer に登録される
+    , mIce(L"" SHADER_ROOT L"/ice/shaders")
 {
     // ウィンドウの入力をカメラとキーの処理へつなぐ
     Window::Callbacks callbacks;
@@ -46,7 +46,17 @@ Application::Application(HINSTANCE instance)
     callbacks.onKeyDown = [this](WPARAM key) { onKeyDown(key); };
     mWindow.setCallbacks(std::move(callbacks));
 
+    // 氷を床の真ん中に置き、 Renderer に登録する (ここで氷のパイプラインが作られ、 以後毎フレーム描かれる)。
+    // 位置のセッターは IceComponent が継承した RenderEntity が持つ
+    mIce.setPosition({ 0.0f, 0.0f, 0.0f });
+    mRenderer.addEntity(&mIce);
     updateTitle();
+}
+
+Application::~Application()
+{
+    // mIce が壊れる前に、 Renderer の一覧から外す
+    mRenderer.removeEntity(&mIce);
 }
 
 void Application::setShape(IceShape shape)
