@@ -89,11 +89,11 @@ float3 ShadeStandard(float3 worldPos, float3 normal)
     float VdotH = saturate(dot(V, H));
 
     // 金属・粗さの流儀:
-    //   金属でない面: 拡散反射の色 = BaseColor、 鏡面反射の F0 = 0.08 × Specular (無色)
-    //   金属        : 拡散反射なし、 鏡面反射の F0 = BaseColor (色付きの映り込み)
+    //   金属でない面: 拡散反射の色 = BaseColor.rgb、 鏡面反射の F0 = 0.08 × Specular (無色)
+    //   金属        : 拡散反射なし、 鏡面反射の F0 = BaseColor.rgb (色付きの映り込み)
     //   その間は Metallic で混ぜる
-    float3 F0 = lerp(float3(0.08, 0.08, 0.08) * Specular, BaseColor, Metallic);
-    float3 diffuseColor = BaseColor * (1.0 - Metallic);
+    float3 F0 = lerp(float3(0.08, 0.08, 0.08) * Specular, BaseColor.rgb, Metallic);
+    float3 diffuseColor = BaseColor.rgb * (1.0 - Metallic);
 
     // ---- 太陽からの光 (直接光) ----
     float a = Roughness * Roughness;

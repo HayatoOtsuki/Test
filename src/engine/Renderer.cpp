@@ -72,7 +72,7 @@ void Renderer::addEntity(RenderEntity* entity)
     setup.device = mDevice.getDevice();
     setup.colorFormat = SwapChain::kFormat;
     setup.depthFormat = DepthBuffer::kFormat;
-    entity->initialize(setup);  // 失敗したら例外が出て、 登録されない
+    entity->initializeImplement(setup);  // 失敗したら例外が出て、 登録されない
     mEntities.push_back(entity);
 }
 
@@ -86,7 +86,7 @@ void Renderer::removeEntity(RenderEntity* entity)
 void Renderer::renderFrame(const OrbitCamera& camera, const DirectionalLight& light, float time)
 {
     const DrawContext context = beginFrame(camera, light, time);  // 背景まで描く
-    for (RenderEntity* entity : mEntities) entity->draw3D(context);
+    for (RenderEntity* entity : mEntities) entity->drawImplement(context);
     endFrame();
 }
 
@@ -166,7 +166,7 @@ bool Renderer::reloadShaders(std::string& error)
     mDevice.waitForGpu();
     if (!mBackground.build(error)) return false;
     for (RenderEntity* entity : mEntities) {
-        if (!entity->reloadShaders(error)) return false;
+        if (!entity->reloadImplement(error)) return false;
     }
     return true;
 }

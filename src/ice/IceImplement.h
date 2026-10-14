@@ -2,8 +2,8 @@
 // =============================================================================
 // IceImplement.h — 氷の部品の実装
 //
-// IceComponent が private に持ち、 Renderer に登録する。 描く仕組みの関数 (initialize / draw3D / reloadShaders) は
-// すべてこのクラスにある。 RenderEntity (エンジンの 「毎フレーム描く物」 の基底クラス) を継承し、 Renderer から呼ばれる。
+// IceComponent が private に持つ。 描く仕組みの関数 (initialize / draw3D / reloadShaders) は、 すべてこのクラスにある。
+// Renderer は IceComponent (RenderEntity) を呼び、 IceComponent がここへ渡す。
 //
 // 中身は 2 つのファイルに分けてある:
 //   IceImplement.cpp : 描く準備 (ルートシグネチャ・パイプライン) と draw3D
@@ -16,6 +16,7 @@
 #include "IceComponent.h"
 
 #include "engine/DrawContext.h"
+#include "engine/Material.h"
 #include "engine/MathTypes.h"
 #include "engine/RenderEntity.h"
 
@@ -43,30 +44,27 @@ struct IceGeometry {
 };
 
 // 氷の値。 IceComponent のセッター・ゲッターが読み書きする
+// (位置は IceComponent が継承した RenderEntity が持つので、 ここには無い)
 struct IceParams {
     IceShape shape = IceShape::Cube;
-    Float3 position = { 0.0f, 0.0f, 0.0f };
 
-    // マテリアル (プリミティブ)
-    Float3 baseColor = { 0.70f, 0.85f, 0.95f };  // 淡い水色
-    float metallic = 0.0f;                       // 氷は金属でない
-    float roughness = 0.3f;
-    float specular = 0.5f;                       // F0 = 0.04
+    // プリミティブの質感。 初めは淡い水色、 金属でない、 少しつるつる
+    Material material = { { 0.70f, 0.85f, 0.95f, 1.0f }, 0.0f, 0.3f, 0.5f };
 };
 
-class IceImplement : public RenderEntity {
+class IceImplement {
 public:
     // shaderDir: 氷のシェーダーのフォルダ (src/ice/shaders)
     explicit IceImplement(std::wstring shaderDir);
 
-    // ---- RenderEntity: Renderer から呼ばれる ----
+    // ---- IceComponent (Renderer から呼ばれる関数) から呼ばれる ----
 
     // 描く準備。 ルートシグネチャとパイプラインを作る (登録のときに 1 回)
-    void initialize(const RenderSetup& setup) override;
-    // 毎フレーム呼ばれる。 最初の 1 回で全部の形を作り、 今の形 (mParams.shape) を描く
-    void draw3D(const DrawContext& context) override;
+    void initialize(const RenderSetup& setup);
+    // 毎フレーム呼ばれる。 最初の 1 回で全部の形を作り、 今の形 (mParams.shape) を position に描く
+    void draw3D(const DrawContext& context, const Float3& position);
     // シェーダーを読み直す。 失敗したら false と理由を返し、 前のシェーダーで描き続ける
-    bool reloadShaders(std::string& error) override;
+    bool reloadShaders(std::string& error);
 
     // ---- IceComponent のセッター・ゲッターが使う ----
 

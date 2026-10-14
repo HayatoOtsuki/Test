@@ -18,14 +18,13 @@ using Microsoft::WRL::ComPtr;
 namespace {
 
 // IceCommon.hlsli の cbuffer IceObject (b1) と同じ並び。 氷ごとの値 (32 bit × 12 個)。
-// HLSL の定数は 16 バイト (float 4 個) ずつに区切られるので、 float3 の後に float を 1 つ置いて区切りに合わせる
+// HLSL の定数は 16 バイト (float 4 個) ずつに区切られる。 Material は float4 + float 3 個 = 28 バイトなので、
+// float を 1 つ足して 32 バイトにそろえてから位置を置く
 struct IceObjectConstants {
-    Float3 position;   // 氷の位置 (ワールド)
-    float metallic;
-    Float3 baseColor;
-    float roughness;
-    float specular;
-    float pad[3];
+    Material material;  // [0] baseColor  [1] metallic roughness specular (pad0)
+    float pad0;
+    Float3 position;    // [2] 氷の位置 (ワールド)
+    float pad1;
 };
 static_assert(sizeof(IceObjectConstants) == 12 * 4, "IceObjectConstants must be twelve 32-bit values");
 
@@ -154,7 +153,7 @@ bool IceImplement::reloadShaders(std::string& error)
     return buildPipelines(error);
 }
 
-void IceImplement::draw3D(const DrawContext& context)
+void IceImplement::draw3D(const DrawContext& context, const Float3& position)
 {
     ID3D12GraphicsCommandList* commandList = context.commandList;
 
@@ -169,11 +168,8 @@ void IceImplement::draw3D(const DrawContext& context)
 
     // 3. 氷ごとの値 (カメラとライトはエンジンのシーンの定数をそのまま使う)
     IceObjectConstants object = {};
-    object.position = mParams.position;
-    object.metallic = mParams.metallic;
-    object.baseColor = mParams.baseColor;
-    object.roughness = mParams.roughness;
-    object.specular = mParams.specular;
+    object.material = mParams.material;
+    object.position = position;
 
     // 4. 氷のパイプラインに切り替えて描く。
     //    描画先・ビューポート・シザーはエンジン (Renderer::beginFrame) が設定済み
