@@ -16,6 +16,8 @@ set(ENGINE_SOURCES
     src/engine/BackgroundPass.cpp src/engine/BackgroundPass.h
     src/engine/ShaderCompiler.cpp src/engine/ShaderCompiler.h
     src/engine/DrawContext.h
+    src/engine/DirectionalLight.h
+    src/engine/SceneConstants.h
     src/engine/RenderEntity.h
     src/engine/MathTypes.h
     src/engine/DxCheck.h

@@ -1,6 +1,7 @@
 #include "Application.h"
 
 #include <chrono>
+#include <cmath>
 #include <cwchar>
 #include <string>
 #include <utility>
@@ -20,7 +21,15 @@ const wchar_t* const kShapeNames[] = { L"Cube", L"Sphere", L"Cylinder" };
 static_assert(sizeof(kShapeNames) / sizeof(kShapeNames[0]) == static_cast<size_t>(IceShape::Count),
               "kShapeNames must have one name per IceShape");
 
-constexpr float kMaterialStep = 0.1f;  // [ ] , . で値を変える幅
+constexpr float kMaterialStep = 0.1f;   // [ ] , . で値を変える幅
+constexpr float kSunTurnStep = 0.26f;   // J / L で太陽を回す角度 (ラジアン、 約 15°)
+
+// 向き d を y 軸の周りに angle だけ回す (太陽の高さは変えずに、 方角だけ変える)
+Float3 rotateY(Float3 d, float angle)
+{
+    const float c = std::cos(angle), s = std::sin(angle);
+    return { c * d.x + s * d.z, d.y, -s * d.x + c * d.z };
+}
 
 } // namespace
 
@@ -68,6 +77,9 @@ void Application::onKeyDown(WPARAM key)
         setShape(static_cast<IceShape>(next));
         break;
     }
+    // 太陽を回す: J で左回り、 L で右回り。 値は毎フレーム シーンの定数へ書かれ、 背景とプリミティブの両方に届く
+    case 'J': mSun.direction = rotateY(mSun.direction, kSunTurnStep); break;
+    case 'L': mSun.direction = rotateY(mSun.direction, -kSunTurnStep); break;
     // マテリアルを試す: M で金属かどうか、 [ ] で粗さ、 , . で鏡面反射の強さ
     case 'M':
         mIce.setMetallic(mIce.getMetallic() < 0.5f ? 1.0f : 0.0f);
@@ -129,7 +141,7 @@ int Application::run(int showCommand)
         mRenderer.resize(mWindow.getWidth(), mWindow.getHeight());
         mCamera.update(dt);
 
-        mRenderer.renderFrame(mCamera, time);  // 背景と氷を描いて表示する
+        mRenderer.renderFrame(mCamera, mSun, time);  // 背景と氷を描いて表示する
     }
     return 0;
 }

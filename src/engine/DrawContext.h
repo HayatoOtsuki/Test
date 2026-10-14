@@ -3,10 +3,10 @@
 // DrawContext.h — エンジンから部品の draw3D へ渡す物
 //
 // 部品 (氷など) はこれだけを受け取って描く。 自分のエンジンへ移すときは、
-// エンジンの同じ役目の物 (コマンドリスト・カメラの行列と位置) に置き換える。
+// エンジンの同じ役目の物 (コマンドリスト・カメラとライトの定数バッファ) に置き換える。
 // =============================================================================
 
-#include "MathTypes.h"
+#include "SceneConstants.h"
 
 #include <d3d12.h>
 
@@ -14,10 +14,11 @@ struct DrawContext {
     // 記録中のコマンドリスト。 描画先 (バックバッファと深度)・ビューポート・シザーは設定済み
     ID3D12GraphicsCommandList* commandList = nullptr;
 
-    // ワールド → クリップ空間の行列 (ビュー × 射影)。
-    // HLSL の定数は列優先で読まれるので、 転置して入れてある。 HLSL では mul(float4(p, 1), ViewProj) と書く
-    Float4x4 viewProj;
+    // シーンの定数 (カメラとライト) が入った定数バッファの GPU のアドレス。
+    // 部品は自分のルートシグネチャの b0 (定数バッファビュー) にこれを渡すだけで、 シェーダーから
+    // ViewProj・CameraPos・LightDirection などが読める (shaders/SceneConstants.hlsli)
+    D3D12_GPU_VIRTUAL_ADDRESS sceneConstants = 0;
 
-    Float3 cameraPos;   // カメラの位置 (ワールド、 メートル)
-    float time = 0.0f;  // 起動からの秒
+    // 同じ値の CPU 側の写し (C++ でカメラの位置などを使いたいとき用)
+    SceneConstants scene = {};
 };

@@ -80,7 +80,7 @@ float3 ShadeStandard(float3 worldPos, float3 normal)
 {
     float3 N = normalize(normal);                 // 補間で長さが 1 からずれるので直す
     float3 V = normalize(CameraPos - worldPos);   // 面から目への向き
-    float3 L = SunDirection();                    // 面から太陽への向き
+    float3 L = SunDirection();                    // 面から太陽への向き (シーンの定数から)
     float3 H = normalize(V + L);                  // V と L の真ん中の向き
 
     float NdotL = saturate(dot(N, L));
@@ -101,8 +101,8 @@ float3 ShadeStandard(float3 worldPos, float3 normal)
     float3 specular = DistributionGGX(NdotH, a) * GeometrySmith(NdotV, NdotL, Roughness) * F
                     / (4.0 * NdotV * max(NdotL, 1e-4));
     // 拡散反射 (Lambert) は BRDF = 色 / π。 鏡面反射で跳ね返った分 (F) は中へ入らないので (1 − F) を掛ける。
-    // SUN_COLOR は 「白い面を真上から照らしたときの明るさ」 として決めてあるので、 BRDF に π を掛けて使う
-    float3 direct = ((1.0 - F) * diffuseColor + PI * specular) * SUN_COLOR * NdotL;
+    // SunColor は 「白い面を真上から照らしたときの明るさ」 として決めてあるので、 BRDF に π を掛けて使う
+    float3 direct = ((1.0 - F) * diffuseColor + PI * specular) * SunColor() * NdotL;
 
     // ---- 周り (空と床) からの光 (間接光) ----
     // 拡散: 空のあらゆる向きからの光をまとめた一定の色 (上を向く面ほど多く受ける)。

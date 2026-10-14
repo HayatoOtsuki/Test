@@ -8,6 +8,7 @@
 //   IceComponent: 氷の部品。 作ると Renderer に描画が登録され、 以後 Renderer が毎フレーム描く
 // =============================================================================
 
+#include "DirectionalLight.h"
 #include "OrbitCamera.h"
 #include "Renderer.h"
 #include "Window.h"
@@ -30,6 +31,7 @@ private:
     // 宣言の順に作られる。 Renderer はウィンドウのハンドルを使うので Window の後
     Window mWindow;
     OrbitCamera mCamera;
+    DirectionalLight mSun;  // 太陽。 J / L で向きを回す (シェーダーには数字を書かず、 毎フレームここから渡す)
     Renderer mRenderer;
     IceComponent mIce;  // Renderer の後に作り、 先に壊す (壊れるときに Renderer から登録を外すため)
     bool mReloadRequested = false;  // R キーが押された。 次のフレームの前にシェーダーを読み直す

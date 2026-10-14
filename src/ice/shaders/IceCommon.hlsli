@@ -1,22 +1,15 @@
 // =============================================================================
 // IceCommon.hlsli — 氷のシェーダーが共通で使う物
 //
-//   ・CPU から届く定数 (IceImplement.cpp の IceFrameConstants / IceObjectConstants と同じ並び)
-//   ・環境 (空・床・表示用の変換) はエンジンの Environment.hlsli から読む
+//   ・カメラとライト: エンジンのシーンの定数 (b0、 SceneConstants.hlsli)。 Environment.hlsli が #include している
+//   ・環境 (空・床・表示用の変換): エンジンの Environment.hlsli
+//   ・氷ごとの値 (b1): IceImplement.cpp の IceObjectConstants と同じ並び
 //
-// 自分のエンジンへ移すときは、 Environment.hlsli の #include を、
-// エンジンの空や背景を読む関数に置き換える (氷のシェーダーが使うのは Environment / SunDirection / SUN_COLOR / ToDisplay)。
+// 自分のエンジンへ移すときは、 Environment.hlsli の #include を、 エンジンのシーンの定数と空や背景を読む物に置き換える
+// (氷のシェーダーが使うのは ViewProj / CameraPos / SunDirection / SunColor / Environment / ToDisplay)。
 // =============================================================================
 
 #include "../../engine/shaders/Environment.hlsli"
-
-// フレームごとの値 (ルート引数 0)
-cbuffer IceFrame : register(b0)
-{
-    float4x4 ViewProj;   // ワールド → クリップ空間 (CPU で転置済み。 mul(float4(p, 1), ViewProj) と書く)
-    float3   CameraPos;  // カメラの位置 (ワールド)
-    float    Time;       // 起動からの秒
-};
 
 // 氷ごとの値 (ルート引数 1)。 16 バイト (float 4 個) ずつの区切りに合わせて並べてある
 cbuffer IceObject : register(b1)

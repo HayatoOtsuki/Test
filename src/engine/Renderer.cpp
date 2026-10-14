@@ -23,6 +23,8 @@ Renderer::Renderer(HWND hwnd, UINT width, UINT height, const std::wstring& shade
     // 作ったばかりのコマンドリストは記録中の状態。 beginFrame で Reset できるよう、 いったん閉じる
     ThrowIfFailed(mCommandList->Close(), "CommandList::Close");
 
+    createSceneConstantBuffer();
+
     std::string error;
     if (!mBackground.build(error)) throw std::runtime_error("Background shader error:\n" + error);
 }
@@ -35,6 +37,33 @@ Renderer::~Renderer()
         mDevice.waitForGpu();
     } catch (...) {
     }
+}
+
+void Renderer::createSceneConstantBuffer()
+{
+    // 定数バッファの大きさは 256 バイトの倍数にする決まり (SceneConstants は 176 バイトなので 256)
+    const UINT64 size = (sizeof(SceneConstants) + 255) & ~UINT64(255);
+
+    // CPU から毎フレーム書くので、 アップロードヒープに置く
+    D3D12_HEAP_PROPERTIES heap = {};
+    heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+    D3D12_RESOURCE_DESC desc = {};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    desc.Width = size;
+    desc.Height = 1;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.SampleDesc.Count = 1;
+    desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    ThrowIfFailed(mDevice.getDevice()->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc,
+                                                               D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                                               IID_PPV_ARGS(&mSceneBuffer)),
+                  "CreateCommittedResource(scene constants)");
+
+    // Map したままにしておき、 毎フレーム書く。 アップロードヒープは Map したままでよい。
+    // 毎フレーム GPU が終えるのを待っているので、 書いている間に GPU が読むことはない
+    const D3D12_RANGE noRead = { 0, 0 };
+    ThrowIfFailed(mSceneBuffer->Map(0, &noRead, reinterpret_cast<void**>(&mSceneMapped)), "Map(scene constants)");
 }
 
 void Renderer::addEntity(RenderEntity* entity)
@@ -54,14 +83,14 @@ void Renderer::removeEntity(RenderEntity* entity)
     mEntities.erase(std::remove(mEntities.begin(), mEntities.end(), entity), mEntities.end());
 }
 
-void Renderer::renderFrame(const OrbitCamera& camera, float time)
+void Renderer::renderFrame(const OrbitCamera& camera, const DirectionalLight& light, float time)
 {
-    const DrawContext context = beginFrame(camera, time);  // 背景まで描く
+    const DrawContext context = beginFrame(camera, light, time);  // 背景まで描く
     for (RenderEntity* entity : mEntities) entity->draw3D(context);
     endFrame();
 }
 
-DrawContext Renderer::beginFrame(const OrbitCamera& camera, float time)
+DrawContext Renderer::beginFrame(const OrbitCamera& camera, const DirectionalLight& light, float time)
 {
     // 1. 記録の準備。 前のフレームは waitForGpu で終わっているので、 アロケーターの中身を捨ててよい
     ThrowIfFailed(mAllocator->Reset(), "CommandAllocator::Reset");
@@ -89,16 +118,24 @@ DrawContext Renderer::beginFrame(const OrbitCamera& camera, float time)
     // 5. カメラの行列。 行ベクトル (p × M) の流儀なので、 ワールド → クリップは view × proj (MathTypes.h)
     const Float4x4 viewProj = camera.getViewMatrix() * camera.getProjectionMatrix(width / height);
 
-    // HLSL の定数は列優先で読まれるので、 転置して渡す (HLSL では mul(float4(p, 1), M) と書ける)
+    // 6. シーンの定数 (カメラとライト) を定数バッファに書く。 どのシェーダーも b0 でこれを読む。
+    //    HLSL の定数は列優先で読まれるので、 行列は転置して渡す (HLSL では mul(float4(p, 1), M) と書ける)
+    SceneConstants scene = {};
+    scene.viewProj = transpose(viewProj);
+    scene.invViewProj = transpose(inverse(viewProj));  // 背景で画素ごとの光線を作るのに使う
+    scene.cameraPos = camera.getPosition();
+    scene.time = time;
+    scene.lightDirection = normalize(light.direction);
+    scene.lightColor = light.color * light.intensity;
+    *mSceneMapped = scene;
+
     DrawContext context;
     context.commandList = mCommandList.Get();
-    context.viewProj = transpose(viewProj);
-    context.cameraPos = camera.getPosition();
-    context.time = time;
+    context.sceneConstants = mSceneBuffer->GetGPUVirtualAddress();
+    context.scene = scene;
 
-    // 6. 背景 (空と床)。 画素ごとの光線を作るため、 逆行列 (クリップ → ワールド) を渡す。
-    //    深度には書かないので、 後から描く物がいつも手前に出る
-    mBackground.draw(mCommandList.Get(), transpose(inverse(viewProj)), context.cameraPos, time);
+    // 7. 背景 (空と床)。 深度には書かないので、 後から描く物がいつも手前に出る
+    mBackground.draw(mCommandList.Get(), context.sceneConstants);
     return context;
 }
 

@@ -4,10 +4,8 @@
 //
 // 画面を覆う三角形を 1 枚描き、 ピクセルシェーダーで画素ごとにカメラからの光線を作って、
 // その光線の先の色 (shaders/Environment.hlsli の Environment) を塗る。
-// 深度には書かない (いちばん奥にある物として扱う)。
+// カメラとライトはシーンの定数 (b0) から読む。 深度には書かない (いちばん奥にある物として扱う)。
 // =============================================================================
-
-#include "MathTypes.h"
 
 #include <d3d12.h>
 #include <wrl/client.h>
@@ -23,8 +21,8 @@ public:
     // シェーダーをコンパイルして PSO を作り直す。 失敗したら false と理由を返し、 前の PSO を残す
     bool build(std::string& error);
 
-    // invViewProj: クリップ空間 → ワールドの行列 (転置済み)。 画素ごとの光線の向きを作るのに使う
-    void draw(ID3D12GraphicsCommandList* commandList, const Float4x4& invViewProj, const Float3& cameraPos, float time);
+    // sceneConstants: シーンの定数バッファの GPU のアドレス (b0 に結び付ける)
+    void draw(ID3D12GraphicsCommandList* commandList, D3D12_GPU_VIRTUAL_ADDRESS sceneConstants);
 
 private:
     void createRootSignature();
