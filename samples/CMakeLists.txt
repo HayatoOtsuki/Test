@@ -42,3 +42,10 @@ add_sample(Sample04SdfRaymarch 04_sdf_raymarch
     04_sdf_raymarch/main.cpp
     04_sdf_raymarch/SdfRaymarchSample.cpp 04_sdf_raymarch/SdfRaymarchSample.h
 )
+add_sample(Sample05BakedSdf 05_baked_sdf
+    05_baked_sdf/main.cpp
+    05_baked_sdf/BakedSdfSample.cpp 05_baked_sdf/BakedSdfSample.h
+    05_baked_sdf/BakedShape.cpp 05_baked_sdf/BakedShape.h
+    05_baked_sdf/SdfBaker.cpp 05_baked_sdf/SdfBaker.h
+    05_baked_sdf/SdfTexture.cpp 05_baked_sdf/SdfTexture.h
+)
