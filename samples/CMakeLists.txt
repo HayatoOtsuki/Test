@@ -38,3 +38,7 @@ add_sample(Sample03Raymarch 03_raymarch
     03_raymarch/main.cpp
     03_raymarch/RaymarchSample.cpp 03_raymarch/RaymarchSample.h
 )
+add_sample(Sample04SdfRaymarch 04_sdf_raymarch
+    04_sdf_raymarch/main.cpp
+    04_sdf_raymarch/SdfRaymarchSample.cpp 04_sdf_raymarch/SdfRaymarchSample.h
+)
