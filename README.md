@@ -27,6 +27,8 @@ cmake --build build --config Debug
 `build/Debug/SdfIce.exe` を起動する (Visual Studio で `build/SdfIce.sln` を開いて実行してもよい)。
 シェーダーは実行時にソースのフォルダ (`src/engine/shaders`, `src/ice/shaders`) から読むので、 書き換えて R を押すと読み直せる。
 
+機能ごとの簡易サンプル (プリミティブだけ・SDF だけ・レイマーチングだけ…) も同じビルドで `build/samples/Debug/` にできる。 一覧は [samples/README.md](samples/README.md)。
+
 > このリポジトリは macOS で作った。 C++ は mingw-w64 で構文チェックとリンク、 HLSL は dxc でコンパイル、 シェーダーの絵は同じ HLSL を WebGL2 で動かして確かめたが、 **Windows での実行はまだ確かめていない**。
 
 ## 操作
@@ -58,6 +60,7 @@ src/
 │   ├── IceGenerate.cpp  … 形づくり (generateShape と、 キューブ・球・円柱・SDF)
 │   └── shaders/         … IceMesh (プリミティブの PBR)、 IceSdf (SDF の氷)、 IceShadow (影)
 └── engine/              … エンジンの代わり (氷を動かすための土台。 読まなくてよい)
+samples/                 … 機能ごとの簡易サンプル (1 つの機能だけを小さく試す。 01〜05)
 docs/
 ├── DESIGN.md            … 設計
 ├── 01〜08-*.md          … 要素ごとの解説 (コード・計算・アルゴリズム)
@@ -70,6 +73,7 @@ docs/
 | 読みたいこと | 文書 |
 | --- | --- |
 | 全体の設計 | [docs/DESIGN.md](docs/DESIGN.md) |
+| 1 つの機能だけを動かして見る (プリミティブ / SDF / レイマーチング / SDF × レイマーチング / 焼いた SDF) | [samples/README.md](samples/README.md) |
 | 自分のプロジェクトに足す手順 | [docs/guide/README.md](docs/guide/README.md)、 [docs/guide/schedule.txt](docs/guide/schedule.txt) |
 | 部品の形 (Component / Implement / Generate) とプリミティブ、 PBR | [docs/03-ice-component.md](docs/03-ice-component.md) |
 | カメラとライトの受け取り方 | [docs/04-camera-light.md](docs/04-camera-light.md) |
