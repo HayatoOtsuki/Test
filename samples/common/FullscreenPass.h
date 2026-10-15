@@ -5,7 +5,7 @@
 // SDF の断面・レイマーチング・球追跡のサンプルは、 メッシュを使わず、 画素ごとに光線を作って絵を描く。
 // その 「全画面の三角形を描く」 部分を、 ここにまとめる。
 //
-// シェーダー (samples/common/shaders/SampleCommon.hlsli を #include した物) に渡すもの:
+// シェーダー (samples/common/shaders/Fullscreen.hlsli を #include した物) に渡すもの:
 //   b0: エンジンのシーンの定数 (カメラ・ライト)       — ルートの定数バッファビュー
 //   b1: サンプルの定数 (32 bit × constantCount 個)    — ルート定数
 //   t0: テクスチャ 1 つ (withTexture のときだけ)       — デスクリプターテーブル + 静的サンプラー s0

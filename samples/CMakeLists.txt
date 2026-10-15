@@ -23,3 +23,10 @@ function(add_sample target dir)
     target_compile_definitions(${target} PRIVATE "SAMPLE_SHADER_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/${dir}/shaders\"")
     set_target_properties(${target} PROPERTIES FOLDER samples)
 endfunction()
+
+# ---- サンプル ----
+add_sample(Sample01Primitives 01_primitives
+    01_primitives/main.cpp
+    01_primitives/PrimitiveSample.cpp 01_primitives/PrimitiveSample.h
+    01_primitives/PrimitiveMesh.cpp   01_primitives/PrimitiveMesh.h
+)

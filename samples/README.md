@@ -43,7 +43,7 @@ samples/
 │   ├── SampleEntity.h       … サンプルの基底 (RenderEntity + キー + 題名)
 │   ├── FullscreenPass       … 全画面の三角形で描くサンプル用のパイプライン
 │   ├── GpuHelpers           … アップロードバッファ・ルートシグネチャ・PSO の決まった手順
-│   └── shaders/SampleCommon.hlsli … 全画面の頂点シェーダーと、 カメラの光線
+│   └── shaders/             … SampleCommon.hlsli (シーンの定数・カメラの光線)、 Fullscreen.hlsli (全画面の頂点シェーダー)
 └── 0N_xxx/
     ├── XxxSample.h / .cpp   … そのサンプルの本体 (ここを読む)
     ├── shaders/             … そのサンプルのシェーダー (ここを読む)
