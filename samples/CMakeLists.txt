@@ -30,3 +30,7 @@ add_sample(Sample01Primitives 01_primitives
     01_primitives/PrimitiveSample.cpp 01_primitives/PrimitiveSample.h
     01_primitives/PrimitiveMesh.cpp   01_primitives/PrimitiveMesh.h
 )
+add_sample(Sample02Sdf 02_sdf
+    02_sdf/main.cpp
+    02_sdf/SdfSliceSample.cpp 02_sdf/SdfSliceSample.h
+)
