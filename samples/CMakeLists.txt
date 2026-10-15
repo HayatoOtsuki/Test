@@ -34,3 +34,7 @@ add_sample(Sample02Sdf 02_sdf
     02_sdf/main.cpp
     02_sdf/SdfSliceSample.cpp 02_sdf/SdfSliceSample.h
 )
+add_sample(Sample03Raymarch 03_raymarch
+    03_raymarch/main.cpp
+    03_raymarch/RaymarchSample.cpp 03_raymarch/RaymarchSample.h
+)
