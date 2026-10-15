@@ -63,6 +63,7 @@ Test/
 │           ├── IceSdfCommon.hlsli … SDF を読む・光線と箱・球追跡・気泡の密度 (IceSdf と IceShadow で共有)
 │           ├── IceSdf.hlsl        … SDF の氷 (箱の中をレイマーチ、 光学)
 │           └── IceShadow.hlsl     … SDF の氷の色付きの影 (床を描き直す)
+├── samples/                       … 機能ごとの簡易サンプル (1 つの機能だけを小さく試す。 下の 「機能ごとの簡易サンプル」)
 └── docs/
     ├── DESIGN.md                  … この設計
     ├── 01-…08-*.md                … 要素ごとの解説 (コードと計算・アルゴリズムの説明)
@@ -310,6 +311,37 @@ flowchart TD
 | R | シェーダーを読み直す |
 | Esc | 終了 |
 
+## 機能ごとの簡易サンプル (`samples/`)
+
+本体 (`src/ice/`) は全部の機能が組み合わさっているので、 1 つの機能だけを小さく試せるサンプルを別に作る。
+どれもエンジンの代わり (`src/engine/`) をそのまま使い、 サンプル 1 つ = `RenderEntity` 1 つ + シェーダー + 小さな `main.cpp` にする。
+
+| サンプル | 試すこと | 中身 | キー |
+| --- | --- | --- | --- |
+| `01_primitives` | プリミティブだけ | キューブ・球・円柱のメッシュを作り、 ランバートで描く。 三角形の形が見えるワイヤーフレーム | 1 / 2 / 3: 形、 W: ワイヤーフレーム |
+| `02_sdf` | SDF だけ | 距離場の断面 (平面) を、 距離の色と等高線で見る。 形と CSG (足す・削る・なめらかに足す) を切り替え、 断面を動かす | 1〜6: 形と組み合わせ、 ↑ ↓: 断面の位置 |
+| `03_raymarch` | レイマーチングだけ | 霧の玉 (密度の場) を一定の歩幅で進み、 吸収と散乱を足す。 SDF は使わない | ↑ ↓: 歩数、 S: 太陽の影の有無 |
+| `04_sdf_raymarch` | SDF × レイマーチング | 式で書いた SDF の形を球追跡で描く。 法線・ランバート・影。 歩数を色で見る | 1〜4: 形、 H: 歩数の表示 |
+| `05_baked_sdf` | SDF を焼いて描く | CPU で SDF を 3D テクスチャに焼き、 箱の裏面から球追跡する (`generateSDF` の最小の形) | 1 / 2 / 3: 格子 16³ / 32³ / 64³ |
+
+```
+samples/
+├── CMakeLists.txt             … サンプルごとの exe
+├── README.md                  … 一覧と読む順
+├── common/                    … サンプルの共通の土台
+│   ├── SampleApp.h / .cpp     … ウィンドウ・カメラ・ライト・Renderer を持ち、 サンプル 1 つを回す
+│   ├── SampleEntity.h         … サンプルの基底 (RenderEntity + キー + 題名)
+│   ├── FullscreenPass.h / .cpp… 全画面の三角形で描くサンプル用 (b0 シーンの定数、 b1 サンプルの定数、 t0 テクスチャ)
+│   └── GpuHelpers.h / .cpp    … アップロードバッファ・ルートシグネチャ・PSO の共通部分
+└── 0N_xxx/
+    ├── XxxSample.h / .cpp     … そのサンプルの RenderEntity
+    ├── shaders/               … そのサンプルのシェーダー
+    ├── main.cpp               … SampleApp にサンプルを渡して回すだけ
+    └── README.md              … 何を見るか・キー・読む順・計算の解説
+```
+
+ビルド: `src/engine/` を静的ライブラリ (`SdfEngine`) にし、 本体 (`SdfIce`) とサンプル (`Sample01Primitives` など) が使う。
+
 ## 確かめること
 
 | 項目 | どうなればよいか |
@@ -333,6 +365,7 @@ flowchart TD
 | 1 基盤 | `feature/dx12-base`, `feature/environment`, `feature/ice-component`, `feature/camera-light` | 空と床の上に、 キューブ・球・円柱を切り替えて描ける。 カメラとライトは定数バッファから読む |
 | 2 SDF 氷 | `feature/generate-sdf`, `feature/ice-optics` | SDF の氷が反射・屈折・吸収・全反射して見える |
 | 3 仕上げ | `feature/ice-bubbles`, `feature/ice-shadow`, `docs/guide`, `docs/presentation`, `docs/readme` | 白く濁った芯、 色付きの影、 実装の手順と参考文献、 発表のテンプレート、 README |
+| 4 簡易サンプル | `docs/samples-design`, `feature/samples-common`, `feature/sample-primitives`, `feature/sample-sdf`, `feature/sample-raymarch`, `feature/sample-sdf-raymarch`, `feature/sample-baked-sdf` | 機能ごとに 1 つずつ、 小さな exe で試せる |
 
 各要素には `docs/` に解説を 1 つ付ける (必要なコードを載せ、 1 つずつ説明する)。
 エンジンの代わりの要素の解説は短く、 氷の部品の要素の解説を詳しくする。
@@ -349,6 +382,7 @@ flowchart TD
 | `feature/ice-shadow` | `docs/08-ice-shadow.md` |
 | `docs/guide` | `docs/guide/` (自分のプロジェクトに実装する手順・参考文献とその利用条件) |
 | `docs/presentation` | `docs/presentation/` (スライドのテンプレート `.pptx` と構成のメモ `.txt`) |
+| `feature/sample-*` | `samples/0N_xxx/README.md` (サンプルごと)、 `samples/README.md` (一覧) |
 
 解説には、 コードの説明だけでなく、 使っている計算とアルゴリズム (式の意味・なぜそうするか) を書く。
 参考文献は、 正規の入手先であることと、 利用条件 (引用・実装・コードの流用・商用利用) を確かめて書く。
