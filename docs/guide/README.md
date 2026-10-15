@@ -26,6 +26,18 @@
 | 7 | [step7](step7-shadow.md) | 色付きの影 | 影の描き方 (エンジンによる) | `IceShadow.hlsl` | [08](../08-ice-shadow.md) |
 | 8 | [step8](step8-debug-tune.md) | デバッグと調整 | どこでも | — | — |
 
+### 先に動かすとよいサンプル
+
+各段の前に、 その段の機能だけを取り出したサンプル ([`samples/`](../../samples/README.md)) を動かすと、 何を作るのかが目で分かる。
+
+| 段 | サンプル | 見ておくこと |
+| --- | --- | --- |
+| 2 | [02_sdf](../../samples/02_sdf/README.md) | SDF は空間の全部の点の 「表面までの距離」。 中が負。 断面を動かして形の中を見る |
+| 2〜3 | [05_baked_sdf](../../samples/05_baked_sdf/README.md) | 焼いて 3D テクスチャにする流れ。 格子の細かさで形がどう崩れるか |
+| 4 | [04_sdf_raymarch](../../samples/04_sdf_raymarch/README.md) | 球追跡で表面を探す。 歩数・法線・歩幅を越えたときの崩れ方 |
+| 5〜6 | [03_raymarch](../../samples/03_raymarch/README.md) | 中を少しずつ進んで吸収と散乱を足す (`MarchInside` と同じ形) |
+| (今の状態) | [01_primitives](../../samples/01_primitives/README.md) | 今のプリミティブとの違い (表面しか持たない) |
+
 参考文献と、 その利用条件 (正規の入手先・引用と実装・コードの流用・商用利用) は [`references.md`](references.md)。
 
 ## 進め方の約束
