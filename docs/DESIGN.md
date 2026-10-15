@@ -340,7 +340,7 @@ samples/
     └── README.md              … 何を見るか・キー・読む順・計算の解説
 ```
 
-ビルド: `src/engine/` を静的ライブラリ (`SdfEngine`) にし、 本体 (`SdfIce`) とサンプル (`Sample01Primitives` など) が使う。
+ビルド: `src/engine/` を静的ライブラリ (`SdfEngine`) にし、 本体 (`SdfIce`) とサンプル (`Sample01Primitives` など) が使う。 ただし `Application` は氷の部品を使うので、 ライブラリには入れず本体の exe に入れる。
 
 ## 確かめること
 
