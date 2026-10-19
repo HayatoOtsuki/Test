@@ -1,13 +1,33 @@
 # 06. コップの氷
 
-氷 3 つとコップ 1 つを、 **部品 1 つ = 形 1 つ** で描くサンプル。 氷を 3 つ出すなら部品を 3 つ置くだけで、 シェーダー ([`shaders/GlassIce.hlsl`](shaders/GlassIce.hlsl)) は形 1 つ分しか知らない。
+氷 3 つとコップ 1 つを、 **部品 1 つ = 形 1 つ** で描くサンプル。 氷を 3 つ出すなら部品を 3 つ置くだけで、 シェーダーは形 1 つ分しか知らない。
+シェーダーは、 作る順に 1 段ずつ機能が増えていく **[`IceShader0.hlsl`](shaders/IceShader0.hlsl) 〜 [`IceShader10.hlsl`](shaders/IceShader10.hlsl)** に分けてある。 段階 10 が完成形 (気泡と亀裂入り)。
 コップも同じシェーダーの形の 1 つ (円柱を殻にした SDF) で、 同じ部品で描く。
 
-| 氷 3 つ + コップ | 氷だけ |
+| 完成形 (段階 10) | 気泡と亀裂 (段階 9、 寄って見た所) |
 | --- | --- |
-| ![コップの氷](images/glass_ice.png) | ![氷だけ](images/ice_only.png) |
+| ![コップの氷](images/glass_ice.png) | ![気泡と亀裂](images/bubbles_cracks.png) |
 
 (同じシェーダーを WebGL2 で動かした絵。 共通のカメラに収まるよう、 場面は本物の 8 倍くらいの大きさにしてある)
+
+## 段階のファイル (IceShader0〜10)
+
+自分のエンジンに実装するときは、 **0 から順に 1 段ずつ** 足していく。 各ファイルのヘッダーに 「前の段から引き継ぐ物」 「今回足す物」 「仕組み」 「確かめること」 が書いてあり、 前の段から足した行には `★ 段階 N` の印がある。 前の段のファイルと見比べると、 足した所だけが分かる。
+サンプルを動かすと、 **0〜9 と ← → で段階を切り替えられる** (タイトルバーに段階の名前が出る。 コップは段階 10 だけ)。 C++ 側は全部の段階で同じ。
+
+| 段階 | 足す物 | 確かめること | 絵 |
+| --- | --- | --- | --- |
+| [0](shaders/IceShader0.hlsl) | 箱を描く (頂点シェーダーで 1 回だけ変換、 部品の空間の位置を色に) | 色の付いた箱が見える。 中に入っても消えない (裏面を描いている) | ![0](images/stage0.png) |
+| [1](shaders/IceShader1.hlsl) | 形の式 (SDF)、 球追跡、 discard、 深度 | 角の丸い白い立方体。 重なりの前後が正しい | ![1](images/stage1.png) |
+| [2](shaders/IceShader2.hlsl) | 法線 (中心差分)、 ランバートの光 | 太陽の側が明るい。 J / L で明るい面が回る | ![2](images/stage2.png) |
+| [3](shaders/IceShader3.hlsl) | フレネルの映り込み、 まっすぐ透かす (屈折なし)。 col と thr で光を運ぶ形 | ほとんど見えない (正面は透明、 縁だけ映る)。 これが 「屈折の無い透明」 | ![3](images/stage3.png) |
+| [4](shaders/IceShader4.hlsl) | 屈折 (入口と出口)、 中を出口まで進む | 床の模様が曲がる。 **ここで急に氷らしくなる** | ![4](images/stage4.png) |
+| [5](shaders/IceShader5.hlsl) | 全反射、 後ろの面の映り込み | 面ごとのまだら、 縁が銀色に光る | ![5](images/stage5.png) |
+| [6](shaders/IceShader6.hlsl) | ノイズ、 溶けかけのでこぼこ、 吸収 (ランベルト・ベール) | 屈折した模様がゆるく波打つ | ![6](images/stage6.png) |
+| [7](shaders/IceShader7.hlsl) | 白い芯 (内部散乱) | 真ん中が白く濁り、 縁は透明 | ![7](images/stage7.png) |
+| [8](shaders/IceShader8.hlsl) | 気泡 (マスごとに 0 か 1 個) | 縁の光る小さな粒。 芯の近くほど多い | ![8](images/stage8.png) |
+| [9](shaders/IceShader9.hlsl) | 亀裂 (ぎざぎざの円盤の割れ目) | 斜めから見ると銀色に光る面 | ![9](images/stage9.png) |
+| [10](shaders/IceShader10.hlsl) | コップ (SDF の形、 後ろの絵に重ねる)。 **完成形**: 参考文献と全部の解説がヘッダーにある | コップの壁と口、 中の氷が透けて見える | ![10](images/stage10.png) |
 
 ## 目次
 
@@ -19,7 +39,7 @@
 6. [外から表面を探す (rayMarch)](#6-外から表面を探す-raymarch)
 7. [表面: フレネルと反射](#7-表面-フレネルと反射)
 8. [屈折: スネルの法則](#8-屈折-スネルの法則)
-9. [中を進む (rayMarchInside): ランベルト・ベールの法則と白い芯](#9-中を進む-raymarchinside-ランベルトベールの法則と白い芯)
+9. [中を進む (rayMarchInside): ランベルト・ベールの法則と白い芯](#9-中を進む-raymarchinside-ランベルトベールの法則と白い芯) (気泡と亀裂もここ)
 10. [出口: 全反射と後ろの面](#10-出口-全反射と後ろの面)
 11. [景色と、 コップの重ね方](#11-景色とコップの重ね方)
 12. [部品の箱・空間・深度](#12-部品の箱空間深度)
@@ -32,9 +52,9 @@
 
 | ファイル | 中身 |
 | --- | --- |
-| [`shaders/GlassIce.hlsl`](shaders/GlassIce.hlsl) | 形 1 つを描くシェーダー。 関数はノイズ・SDF・法線・フレネル・レイマーチング。 描く流れは `PSMain` |
+| [`shaders/IceShader0〜10.hlsl`](shaders/IceShader10.hlsl) | 形 1 つを描くシェーダー (段階ごと)。 関数はノイズ・SDF・法線・フレネル・気泡・亀裂・レイマーチング。 描く流れは `PSMain` |
 | [`SdfObject.h`](SdfObject.h) / [`.cpp`](SdfObject.cpp) | 部品 (RenderEntity)。 形を囲む箱を描く。 位置・回転・屈折率・吸収・白い芯をセッターで決める |
-| [`GlassIceSample.h`](GlassIceSample.h) / [`.cpp`](GlassIceSample.cpp) | 氷 3 つとコップ 1 つを置くだけ (自分は描かない) |
+| [`GlassIceSample.h`](GlassIceSample.h) / [`.cpp`](GlassIceSample.cpp) | 氷 3 つとコップ 1 つを置く (自分は描かない)。 キーで段階 (シェーダーのファイル) を切り替える |
 
 ピクセルシェーダーの引数は `v` で、 `v.Pos` (画面の位置)・`v.LPos` (部品の空間の位置)・`v.WPos` (ワールドの位置)・`v.UV` が取れる。 カメラの位置は `cameraPos`。
 
@@ -47,7 +67,7 @@ PSMain(v)
 └─ for 同じ形に入る (2 回まで: コップの手前の壁 → 奥の壁)
     ├─ 2. 表面: 映り込み (フレネル) を足し、 屈折 (スネル) して中へ
     ├─ for 出口 (4 回まで: 全反射で跳ね返る)
-    │   ├─ 3. rayMarchInside: 中を出口まで (吸収・白い芯)
+    │   ├─ 3. rayMarchInside: 中を出口まで (吸収・白い芯・気泡・亀裂)
     │   └─ 4. 出口: 屈折して外へ / 全反射して 3 へ。 後ろの面の映り込み
     └─ 5. 外へ出た光が、 同じ形にまた当たるか (rayMarch)
 6. 景色: 氷は出た向きの空と床。 コップは後ろに描いた物に重ねる
@@ -64,7 +84,7 @@ PSMain(v)
 3. **色を付けすぎない**。 氷が青く見えるのは厚さが数 m あるとき。 コップの氷は光の通る長さが数 cm なので、 ほぼ無色。 吸収が強いと氷塊に見える。
 4. **映り込み (フレネル)**。 縁ほど白く映り込む。 景色の太陽が映ると、 鋭いハイライトになる (ハイライトの計算は別に要らない)。
 5. **形**: 小さく、 角が丸く (溶けかけ)、 いくつか傾けて重ねる。 でこぼこはゆるく小さく (細かいと霜に見える)。
-6. **中身**: 冷凍庫の氷なら白い芯。 お店の氷なら芯は無く、 ほぼ透明。
+6. **中身**: 冷凍庫の氷なら白い芯と、 粒の気泡。 割れ目 (亀裂) は角度で銀色に光る。 お店の氷なら芯も気泡も無く、 ほぼ透明。
 7. **影と周り**: コップ、 背景の模様 (透けて歪む物が無いと、 屈折しても分からない)、 影 (このサンプルでは入れていない。 [§11](#11-景色とコップの重ね方))。
 
 ## 3. ノイズ (hash / noise)
@@ -286,6 +306,68 @@ $$\frac{dL}{dt} = -(\sigma_a + \sigma_s)\,L + \sigma_s \int p(\omega, \omega')\,
 
 水には空気が溶けている。 凍るとき、 溶けていた空気は氷に入れず、 細かい泡になって出てくる。 外側に氷の層ができると、 泡は中に閉じ込められる (Wikipedia 「Ice cube」 の 「Clear and cloudy」)。 冷凍庫の氷は外側から凍るので、 泡は最後に凍る内側に集まり、 真ん中が白く濁る。 お店の透明な氷は、 水を流しながら下から凍らせて、 泡を逃がしている。
 
+### 気泡 (段階 8)
+
+```hlsl
+float3 cell = floor(p / BUBBLE_CELL);                         // マスの番号
+float3 r = hash3(cell + seed * 13.0);                         // このマスのでたらめな値 3 つ
+center = (cell + 0.5 + (r - 0.5) * 0.4) * BUBBLE_CELL;        // 中心: マスの真ん中 ± 20%
+radius = lerp(BUBBLE_R_MIN, BUBBLE_R_MAX, frac(r.x * 7.31));  // 半径: 1.5〜4 mm
+if (frac(r.y * 3.17 + r.z * 5.11) > rate || …) return 1e3;    // このマスに気泡は無い
+return length(p - center) - radius;                           // 球の距離関数
+```
+
+**置き方**: 空間を 3.5 cm のマスに分け、 マスの番号から `hash3` で 「気泡があるか・位置・大きさ」 を決める。 同じマスからはいつも同じ値が出るので、 気泡の場所を覚えておく配列は要らない (The Book of Shaders 第 12 章の 「マスごとに点を置く」 と同じ考え方)。
+
+- `seed` は部品の位置 (`mul(float4(0, 0, 0, 1), world)`)。 これを混ぜて、 氷ごとに気泡の並びを変える。
+- 気泡がある確率は、 マスの中心が深い (芯に近い) ほど高い (5〜30%)。 冷凍庫の氷は、 泡が中に閉じ込められるため。
+- 中心をマスの真ん中 ± 20% にして、 面から 30% 離す。 半径 (最大 4 mm) はその余白より小さいので、 気泡はマスからはみ出さない。 だから **自分のマスの気泡だけを調べればよい**。
+
+**歩幅**: 自分のマスの気泡しか調べないので、 1 歩でマスを越えると、 となりのマスの気泡を調べずに通り過ぎてしまう。 そこで 1 歩を 「光線がこのマスを出るまで」 に抑える:
+
+$$t_{	ext{面}} = rac{	ext{面} - p}{d} \quad (	ext{各軸で、 光線が進む向きにある面})、 \qquad 	ext{cellStep} = \min(t_x, t_y, t_z) + 0.5\,	ext{mm}$$
+
+これは光線で格子をたどる方法で、 光線と箱の交差 (スラブ法) と同じ考え方。 さらに、 気泡の表面までの距離 (球の SDF) でも歩幅を抑える (球追跡)。
+
+> 最初は 「いちばん近い面までの距離」 (向きを見ない) にしていたが、 面を越えた直後は距離がほぼ 0 なので歩幅が小さくなりすぎ、 歩数を使い切って出口まで着かなかった (芯が消えた)。 光線の向きで測るのが正しい。
+
+**見え方**: 気泡の中は空気なので、 気泡の表面は 氷 → 空気 の境目。 出口と同じく、 浅い角度 (気泡の縁) では全反射する (密な物 → 疎な物でだけ全反射が起きる)。 だから気泡は **縁が銀色に光り、 真ん中が透ける粒** に見える。
+
+```hlsl
+float3 nb = normalize(p - bubbleC);                         // 気泡の法線 (氷の側)
+float3 into = refract(rd, nb, ior);                         // 氷 → 空気
+float Fb = dot(into, into) < 1e-6 ? 1.0 : fresnelSchlick(dot(-rd, nb));  // 全反射なら 1
+col += thr * Fb * 景色(reflect(rd, nb));                     // 映り込み
+thr *= 1.0 - Fb;                                            // 残りは通り抜ける
+```
+
+**抜け方**: 光線と球の交点の公式で、 気泡の出口まで一気に飛ぶ。 光線 $p + t\,d$ と球 $|x - c| = r$ の交点は、 $oc = p - c$、 $b = oc \cdot d$、 $c' = |oc|^2 - r^2$ とおいて
+
+$$t = -b \pm \sqrt{b^2 - c'}$$
+
+遠い方 (+) が出口。 本当は気泡の中で光が広がる (空気の球は凹レンズとして働く) が、 小さいので曲がりは無視する (このサンプルの近似)。 当たりと数えるのは、 気泡に **近づいている** とき (`dot(rd, p − 中心) < 0`) だけ。 抜けた直後の裏側をまた当たりと数えると、 法線が逆向きになって光が全部消えてしまう。
+
+### 亀裂 (段階 9)
+
+亀裂は、 氷の中の 1 枚の割れ目。 中は薄い空気の層なので、 光は 氷 → 空気 → 氷 と通る。 気泡と同じく、 **浅い角度では全反射して鏡のように光り**、 正面からはほとんど透ける。
+
+```hlsl
+float3 crackN = crackPlane(crackC);                                    // 面の向きと円盤の中心 (部品の位置から hash3 で決める)
+float dn = dot(rd, crackN);
+float tc = dot(crackC - p, crackN) / dn;                               // 光線と平面の交点までの距離
+if (tc > 0.0 && tc < s && insideCrack(p + rd * tc - crackC)) {         // この 1 歩の間に、 円盤の中を通る
+    float3 nc = dn < 0.0 ? crackN : -crackN;                           // 光線と向かい合う法線
+    float3 through = refract(rd, nc, ior);
+    float Fc = dot(through, through) < 1e-6 ? 1.0 : min(2.0 * fresnelSchlick(dot(-rd, nc)), 1.0);
+    …
+}
+```
+
+- **形**: 平面の上の円盤 (半径 8 cm)。 ふちの半径を `noise` で場所ごとにゆらして、 ぎざぎざにする (`insideCrack`)。
+- **通ったかの判定**: 光線 $p + t\,d$ と平面 $(x - c)\cdot n = 0$ の交点は $t = \dfrac{(c - p)\cdot n}{d \cdot n}$。 その $t$ が今の 1 歩 (0〜s) の中にあり、 交点が円盤の中なら通った。
+- **映り込み**: 全反射なら 1。 そうでなければ、 割れ目の 2 つの面 (入る・出る) の映り込み 2F。 薄いので、 通り抜けた光の曲がりは無視する。
+- **白い散らばり**: 本物の割れ目には細かいひびがあり、 光を白く散らす。 通る光の 8% (`CRACK_WHITE`) を白として足す (このサンプルで決めた値)。
+
 ## 10. 出口: 全反射と後ろの面
 
 ### 全反射
@@ -408,6 +490,9 @@ depth = clip.z / clip.w;  // SV_Depth
 | refract の決まり | Microsoft [refract](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-refract) | 英語。 全反射で (0, 0, 0) を返すと書いてある | Microsoft の文書 |
 | フレネル (Schlick) | LearnOpenGL [PBR Theory](https://learnopengl.com/PBR/Theory) の Fresnel equation。 原典 Schlick 1994 ([DOI](https://doi.org/10.1111/1467-8659.1330233)) | 英語。 式とコード | LearnOpenGL は同上。 論文は出版社の著作権 |
 | スネル・全反射・透過率 | PBR Book 第 4 版 [Specular Reflection and Transmission](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)・[Transmittance](https://pbr-book.org/4ed/Volume_Scattering/Transmittance) | 英語。 式の導きが丁寧 | 本文 CC BY-NC-ND 4.0 ([docs/guide/references.md](../../docs/guide/references.md))。 本文中のコードは写さない |
+| マスごとに点を置く (気泡) | The Book of Shaders [第 12 章 セルラーノイズ](https://thebookofshaders.com/12/?lan=jp) | 日本語。 マスの番号から点を決める考え方 | 第 10・11 章と同じ (All rights reserved) |
+| 光線と球・平面の交点 (気泡・亀裂) | Inigo Quilez [intersectors](https://iquilezles.org/articles/intersectors) | 英語。 `sphIntersect` / `plaIntersect` のコード | 記事のコード片は MIT |
+| 全反射 (密な物 → 疎な物) | Wikipedia [Total internal reflection](https://en.wikipedia.org/wiki/Total_internal_reflection) | 英語。 図が多い | 本文 CC BY-SA 4.0 |
 | 内部散乱 (放射伝達の式) | PBR Book 第 4 版 [Volume Scattering Processes](https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes) | 英語。 吸収・外への散乱・中への散乱を順に説明 | 同上 |
 | 冷凍庫の氷が濁る理由 | Wikipedia [Ice cube](https://en.wikipedia.org/wiki/Ice_cube) の Clear and cloudy | 英語。 短い | 本文 CC BY-SA 4.0 (Wikipedia の通常の条件)。 写すなら表示と同じ条件での公開が要る |
 | 氷の屈折率 1.31 | Warren & Brandt 2008 ([DOI](https://doi.org/10.1029/2007JD009744)) | 論文 (値の出典) | 値は事実として使える |
@@ -418,7 +503,7 @@ depth = clip.z / clip.w;  // SV_Depth
 
 シェーダーと C++ の部品を 1 つずつ、 「何をしているか」 と 「どこから来たか」 で並べた。 **出典がある物** は文献の考え方を自分で書いた物、 **このサンプルで決めた物** は文献に無い近似や、 見た目で選んだ値。 説明するときは、 この区別をそのまま言えばよい。
 
-### シェーダー (GlassIce.hlsl)
+### シェーダー (IceShader10.hlsl。 途中の段も同じ部品)
 
 | 部品 | 何をしているか | 出典 / 決めた理由 |
 | --- | --- | --- |
@@ -442,6 +527,16 @@ depth = clip.z / clip.w;  // SV_Depth
 | `absorption = (0.10, 0.04, 0.02)` | 氷の吸収の強さ | **このサンプルで決めた値** (小さな氷がほぼ無色になる弱さ)。 本物の氷の吸収は Warren & Brandt 2008 に波長ごとの値がある。 赤が強く吸われる (だから厚い氷は青い) という向きは本物と同じ |
 | `1 − exp(−core × s)` と `col += thr * a * 白` | 白い芯の散乱 | 放射伝達の式 (PBR Book "Volume Scattering Processes") を、 一回散乱・向きの偏り無し・届く光は決まった白、 と省略した物。 **省略の仕方はこのサンプルで決めた物** (§9) |
 | 芯の位置 `smoothstep(0.05, 0.11, depth)`、 濃さ 15、 白 (0.85, 0.9, 0.95) | 芯の形と色 | 「冷凍庫の氷は泡が中に閉じ込められて濁る」 は Wikipedia "Ice cube" (Clear and cloudy)。 **深さ・濃さ・色の値は見た目で決めた** |
+| `hash3` | でたらめな値を 3 つ | `hash` を、 点をずらして 3 回呼んだ物。 ずらす量に意味は無い |
+| 気泡をマスごとに置く (`nearestBubble`) | マスの番号から有無・位置・大きさを決める | The Book of Shaders 第 12 章 (マスごとに点を置く)。 マス 3.5 cm・半径 1.5〜4 mm・確率 5〜30% は **このサンプルで決めた値** |
+| 気泡の歩幅 (光線がマスを出るまで) | となりのマスの気泡を通り過ぎない | 光線で格子をたどる考え方 (光線と箱の交差と同じ式)。 **このサンプルの作り** |
+| 気泡の映り込み (全反射なら 1) | 縁が光り真ん中が透ける粒 | 全反射 (Wikipedia "Total internal reflection"、 PBR Book)。 中を通る光の曲がりを無視するのは **このサンプルの近似** |
+| 気泡を抜ける (`t = −b + √(b² − c)`) | 光線と球の交点の遠い方 | Inigo Quilez "intersectors" (`sphIntersect`) |
+| 近づいているときだけ当たりにする | 抜けた直後の裏側で光が消えるのを防ぐ | **このサンプルで決めた条件** |
+| 亀裂の円盤 (`crackPlane` / `insideCrack`) | 向きと中心を hash3 で、 ふちをノイズでゆらす | **このサンプルで決めた形** (半径 8 cm) |
+| 亀裂を通ったか (`t = (c − p)·n / (d·n)`) | 光線と平面の交点 | Inigo Quilez "intersectors" (`plaIntersect`) |
+| 亀裂の映り込み (全反射なら 1、 そうでなければ 2F) | 薄い空気の層の 2 つの面 | フレネル・全反射。 2 面を 2F とするのと、 曲がりの無視は **このサンプルの近似** |
+| `CRACK_WHITE = 0.08` | 細かいひびの白い散らばり | **このサンプルで決めた値** |
 | 出口で中へ跳ね返る分を景色で足す | 後ろの面の映り込み | **このサンプルの近似**。 本当は跳ね返った光をもう一度追う (§10) |
 | 全反射 4 回で打ち切り、 残りを景色で近似 | 重さを決めて止める | **このサンプルの近似** |
 | `EPS = 0.001` (表面から少し離す) | 曲がった直後に、 同じ表面にまた当たらないように | レイトレーシングでよく使う決まった手 (自分自身に当たる誤差を避ける)。 値は **このサンプルで決めた** (コップの壁の厚さの半分 6 mm より小さく) |
@@ -457,6 +552,7 @@ depth = clip.z / clip.w;  // SV_Depth
 | --- | --- | --- |
 | `makeBox` (箱の 6 面) | 形を囲む箱。 外から見て反時計回り | このリポジトリの本体の `appendBox` ([`src/ice/IceGenerate.cpp`](../../src/ice/IceGenerate.cpp)) と同じ決まり (外から見て反時計回りが表) |
 | `D3D12_CULL_MODE_FRONT` | 箱の裏面を描く (カメラが中に入っても消えない) | 本体の SDF の氷と同じ ([docs/05-generate-sdf.md](../../docs/05-generate-sdf.md) §5.1) |
+| `setShaderFile` / `setVisible` | 段階の切り替え (次に描くときにコンパイルし直す)、 コップを段階 10 だけ描く | **このサンプルの作り**。 前のフレームは Renderer が待ち終えているので、 描く前に PSO を作り直してよい |
 | `rotationY` / `rotationZ` / `translation`、 掛ける順 | 部品の空間 → ワールド | 行ベクトル (`p × M`) の回転行列。 このリポジトリの `MathTypes.h` と同じ流儀 ([docs/04-camera-light.md](../../docs/04-camera-light.md)) |
 | `transpose` して渡す | HLSL が列優先で読むため | `ViewProj` と同じ ([docs/04-camera-light.md](../../docs/04-camera-light.md)) |
 | `inverse(world)` | ワールド → 部品の空間 (カメラの位置を直す) | 逆行列 (`MathTypes.h` の `inverse`) |
