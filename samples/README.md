@@ -14,7 +14,7 @@
 | [03_raymarch](03_raymarch/README.md) | レイマーチングだけ | 光線を少しずつ進めて、 その場の値を足していく (SDF は使わない) | ↑ ↓: 歩数、 S: 太陽の影、 [ ]: 濃さ |
 | [04_sdf_raymarch](04_sdf_raymarch/README.md) | SDF × レイマーチング | SDF の値だけ進めば表面を越えない (球追跡) | 1〜8: 形、 H: 表示 (光 / 歩数 / 法線)、 S: 影、 ↑ ↓: 歩幅の倍率 |
 | [05_baked_sdf](05_baked_sdf/README.md) | SDF を焼いて描く | 式を 3D テクスチャに焼いても同じように描ける。 格子が粗いと角が丸まり、 細い所が消える | 1〜5: 格子の細かさ (8³〜128³)、 G: 格子の線 |
-| [06_glass_ice](06_glass_ice/README.md) | コップの氷 (短い版) | 氷に見えるのは屈折と全反射。 色は付けすぎない。 要素を 1 つずつ足して比べる | 1〜7: 段階 |
+| [06_glass_ice](06_glass_ice/README.md) | コップの氷 | 部品 1 つ = 形 1 つ (氷 3 つ + コップ)。 屈折・全反射・フレネル・ランベルト・ベール・白い芯。 全部の式の解説と出典 | なし |
 
 どのサンプルでも同じキー: 左ドラッグ (カメラを回す)、 ホイール (寄る・引く)、 Space (自動回転)、 J / L (太陽を回す)、 R (シェーダーを読み直す)、 Esc (終わる)。
 ウィンドウの題名に、 今の状態 (形・歩数など) が出る。
@@ -74,4 +74,4 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int showCommand)
 | 03_raymarch | `IceSdf.hlsl` の `MarchInside` (中を進んで吸収と気泡を足す所) | [docs/07-ice-bubbles.md](../docs/07-ice-bubbles.md) |
 | 04_sdf_raymarch | `IceSdfCommon.hlsli` の `SphereTrace` / `SdfNormal` | [docs/05-generate-sdf.md](../docs/05-generate-sdf.md) §5 |
 | 05_baked_sdf | `IceGenerate.cpp` の `generateSDF` と `IceSdf.hlsl` の形を探す所 | [docs/05-generate-sdf.md](../docs/05-generate-sdf.md) §3〜5 |
-| 06_glass_ice | `IceSdf.hlsl` の `ShadeIceSdf` を短くした物 (映り込み・屈折・全反射・吸収・芯) | [docs/06-ice-optics.md](../docs/06-ice-optics.md) |
+| 06_glass_ice | `IceSdf.hlsl` の `ShadeIceSdf` を、 部品 1 つ = 形 1 つ で書き直した物 (映り込み・屈折・全反射・吸収・芯) | [docs/06-ice-optics.md](../docs/06-ice-optics.md)、 [06 の README](06_glass_ice/README.md) |

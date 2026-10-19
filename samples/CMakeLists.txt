@@ -52,4 +52,5 @@ add_sample(Sample05BakedSdf 05_baked_sdf
 add_sample(Sample06GlassIce 06_glass_ice
     06_glass_ice/main.cpp
     06_glass_ice/GlassIceSample.cpp 06_glass_ice/GlassIceSample.h
+    06_glass_ice/SdfObject.cpp 06_glass_ice/SdfObject.h
 )

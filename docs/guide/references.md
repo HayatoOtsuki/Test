@@ -44,6 +44,19 @@
 
 > この式は ACES の近似で、 ACES そのものではない。 発表などでは 「ACES 準拠」 ではなく **「ACES の近似 (Narkowicz 2016)」** と書く。
 
+### コードつきの読み物 (サンプル 06 で追加、 確認日 2026-10-19)
+
+論文だけではコードとのつながりが分かりにくいので、 コードつきで説明している物を足した。 どれも **読んで考え方を使うだけ** で、 コードは写していない。
+
+| 文献 | 正規の入手先 | 使った所 | 利用条件 | 読む・式を使う | コードを写して商用 |
+| --- | --- | --- | --- | --- | --- |
+| Patricio Gonzalez Vivo, Jen Lowe, "The Book of Shaders" 第 10 章 ランダム・第 11 章 ノイズ | [thebookofshaders.com/10](https://thebookofshaders.com/10/?lan=jp)・[/11](https://thebookofshaders.com/11/?lan=jp) (日本語あり) | sin のハッシュ、 値ノイズ、 エルミート補間 ([samples/06](../../samples/06_glass_ice/README.md) §3) | リポジトリ (patriciogonzalezvivo/thebookofshaders) の LICENSE は 「All rights reserved」 | 可 | **不可** (文章もコードも写さない) |
+| Inigo Quilez, 記事 "distance functions"・"normals for an SDF"・"raymarching SDFs" (個別のページ) | [distfunctions](https://iquilezles.org/articles/distfunctions)・[normalsSDF](https://iquilezles.org/articles/normalsSDF)・[raymarchingdf](https://iquilezles.org/articles/raymarchingdf) | 角の丸い箱・円柱・onion・共通部分、 中心差分、 球追跡 (06 §4〜6) | 記事の一覧のページに 「技術的なコード片は MIT、 作品としての数学・シェーダーは別」 と記載 | 可 | 可 (MIT の表示を同梱)。 作品は不可 |
+| Joey de Vries, "LearnOpenGL" の Cubemaps (Reflection / Refraction)・PBR Theory (Fresnel) | [Cubemaps](https://learnopengl.com/Advanced-OpenGL/Cubemaps)・[PBR Theory](https://learnopengl.com/PBR/Theory) | reflect / refract の使い方、 Schlick のフレネル (06 §7〜8) | About のページに 「コードは CC BY-NC 4.0、 画像は CC BY 4.0」 と記載 | 可 | **不可** (非営利のみ) |
+| Microsoft Learn: HLSL の `refract`・`discard`・セマンティクス (`SV_Depth`)、 D3D12 の `D3D12_RENDER_TARGET_BLEND_DESC`・Root Signature Limits | [refract](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-refract)・[discard](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/discard--sm4---asm-)・[semantics](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics)・[blend](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_render_target_blend_desc)・[root signature limits](https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits) | 全反射で (0, 0, 0)、 描かない画素、 深度を書く、 ブレンド、 ルート定数の上限 (06 §10〜12、 §14) | 下の 「DirectX 12」 の Microsoft Learn と同じ | 可 | 下と同じ |
+| PBR Book 第 4 版 "Specular Reflection and Transmission"・"Transmittance"・"Volume Scattering Processes" | [Specular](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)・[Transmittance](https://pbr-book.org/4ed/Volume_Scattering/Transmittance)・[Processes](https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes) | スネル・全反射・F0、 ランベルト・ベール、 放射伝達の式 (06 §8〜10) | 上の 「反射・屈折・PBR」 の PBR Book と同じ | 可 | 上と同じ |
+| Wikipedia "Ice cube" の Clear and cloudy | [en.wikipedia.org/wiki/Ice_cube](https://en.wikipedia.org/wiki/Ice_cube) | 冷凍庫の氷が白く濁る理由 (06 §9) | 本文 CC BY-SA 4.0 | 可 | 文章を写すなら同じ条件での公開が要る (写していない) |
+
 ### DirectX 12
 
 | 文献 | 正規の入手先 | 使った所 | 利用条件 | 読む | コードを写して商用 |
