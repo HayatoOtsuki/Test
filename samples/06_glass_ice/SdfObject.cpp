@@ -2,6 +2,8 @@
 
 #include "common/GpuHelpers.h"
 
+#include <windows.h>  // OutputDebugStringA
+
 #include <cmath>
 #include <stdexcept>
 #include <utility>
@@ -9,7 +11,7 @@
 
 namespace {
 
-// GlassIce.hlsl の cbuffer ObjectConstants と同じ並び (32 bit × 44 個)
+// シェーダーの cbuffer ObjectConstants と同じ並び (32 bit × 44 個。 全部の段階で同じ)
 struct ObjectConstants {
     Float4x4 world;      // 部品の空間 → ワールド (転置して渡す)
     Float4x4 invWorld;   // ワールド → 部品の空間 (転置して渡す)
@@ -28,7 +30,7 @@ struct BoxVertex {
     Float2 uv;
 };
 
-// 形を囲む箱の半分の大きさ。 GlassIce.hlsl の形より少し大きくする (ICE_HALF + でこぼこ、 CUP_R / CUP_H + 壁の厚さ)
+// 形を囲む箱の半分の大きさ。 シェーダーの形より少し大きくする (ICE_HALF + でこぼこ、 CUP_R / CUP_H + 壁の厚さ)
 Float3 boundsHalf(SdfObject::Shape shape)
 {
     if (shape == SdfObject::Shape::IceCube) return { 0.15f, 0.15f, 0.15f };
@@ -93,6 +95,13 @@ Float4x4 translation(const Float3& t)
 SdfObject::SdfObject(std::wstring shaderFile, Shape shape)
     : mShaderFile(std::move(shaderFile)), mShape(shape)
 {
+}
+
+void SdfObject::setShaderFile(const std::wstring& shaderFile)
+{
+    if (shaderFile == mShaderFile) return;
+    mShaderFile = shaderFile;
+    mShaderChanged = true;
 }
 
 void SdfObject::setRotation(float yaw, float tilt)
@@ -161,6 +170,14 @@ bool SdfObject::reloadImplement(std::string& error)
 
 void SdfObject::drawImplement(const DrawContext& context)
 {
+    if (mShaderChanged) {
+        // シェーダーが変わったので作り直す。 前のフレームは Renderer が待ち終えているので、 前の PSO を捨ててよい
+        mShaderChanged = false;
+        std::string error;
+        if (!reloadImplement(error)) OutputDebugStringA(("Sample shader error:\n" + error).c_str());
+    }
+    if (!mVisible) return;
+
     const Float4x4 world = worldMatrix();
     ObjectConstants constants = {};
     constants.world = transpose(world);  // HLSL は列優先で読むので転置して渡す (ViewProj と同じ)

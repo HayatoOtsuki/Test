@@ -2,7 +2,7 @@
 // =============================================================================
 // SdfObject.h — SDF の形を 1 つ描く部品 (コンポーネント 1 つ = 形 1 つ)
 //
-// 形を囲む箱のメッシュを描き、 箱が映る画素で GlassIce.hlsl が光線を追って形を描く。
+// 形を囲む箱のメッシュを描き、 箱が映る画素でシェーダー (IceShaderN.hlsl) が光線を追って形を描く。
 // 位置は RenderEntity の位置。 回転・屈折率・吸収・白い芯をセッターで決める。
 // 氷を 3 つ出すなら、 この部品を 3 つ置くだけ。
 // =============================================================================
@@ -18,7 +18,7 @@
 
 class SdfObject : public RenderEntity {
 public:
-    // GlassIce.hlsl の shape と同じ番号
+    // シェーダーの shape と同じ番号
     enum class Shape : uint32_t { IceCube = 0, Cup = 1 };
 
     SdfObject(std::wstring shaderFile, Shape shape);
@@ -27,6 +27,10 @@ public:
     void setRefractiveIndex(float ior) { mIor = ior; } // 屈折率 (氷 1.31、 ガラス 1.5)
     void setAbsorption(const Float3& sigma) { mAbsorption = sigma; }  // 1 m あたりの吸収 (赤・緑・青)
     void setCoreDensity(float density) { mCoreDensity = density; }    // 白い芯の濃さ (1/m)。 0 なら芯なし
+    void setVisible(bool visible) { mVisible = visible; }             // false なら描かない
+
+    // 使うシェーダーを変える。 次に描くときにコンパイルし直す (失敗したら前のシェーダーのまま)
+    void setShaderFile(const std::wstring& shaderFile);
 
 private:
     void initializeImplement(const RenderSetup& setup) override;
@@ -42,6 +46,8 @@ private:
     float mIor = 1.31f;
     Float3 mAbsorption = { 0.10f, 0.04f, 0.02f };
     float mCoreDensity = 0.0f;
+    bool mVisible = true;
+    bool mShaderChanged = false;  // setShaderFile の後、 まだコンパイルし直していない
 
     ID3D12Device* mDevice = nullptr;
     RenderSetup mSetup;
