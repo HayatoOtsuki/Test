@@ -60,7 +60,7 @@ src/
 │   ├── IceGenerate.cpp  … 形づくり (generateShape と、 キューブ・球・円柱・SDF)
 │   └── shaders/         … IceMesh (プリミティブの PBR)、 IceSdf (SDF の氷)、 IceShadow (影)
 └── engine/              … エンジンの代わり (氷を動かすための土台。 読まなくてよい)
-samples/                 … 機能ごとの簡易サンプル (1 つの機能だけを小さく試す。 01〜05)
+samples/                 … 機能ごとの簡易サンプル (1 つの機能だけを小さく試す。 01〜05) と、 短い 「コップの氷」 (06)
 docs/
 ├── DESIGN.md            … 設計
 ├── 01〜08-*.md          … 要素ごとの解説 (コード・計算・アルゴリズム)
