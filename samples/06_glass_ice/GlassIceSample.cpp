@@ -1,50 +1,54 @@
 #include "GlassIceSample.h"
 
-#include <cstdint>
-
-namespace {
-
-// GlassIce.hlsl の cbuffer GlassIceConstants と同じ並び (32 bit × 4 個)
-struct GlassIceConstants {
-    uint32_t step;
-    float pad[3];
-};
-static_assert(sizeof(GlassIceConstants) == 4 * 4, "GlassIceConstants must be four 32-bit values");
-
-constexpr int kStepCount = 7;
-const wchar_t* const kStepNames[] = { L"強い吸収 (氷塊の色)", L"吸収を弱く (小さな氷はほぼ無色)", L"屈折 (歪み)",
-                                      L"全反射と後ろの面の映り込み", L"白い芯", L"薄い影", L"コップ" };
-
-} // namespace
-
 GlassIceSample::GlassIceSample(const std::wstring& shaderDir)
-    : mPass(shaderDir + L"/GlassIce.hlsl", sizeof(GlassIceConstants) / 4)
+    : mIce0(shaderDir + L"/GlassIce.hlsl", SdfObject::Shape::IceCube)
+    , mIce1(shaderDir + L"/GlassIce.hlsl", SdfObject::Shape::IceCube)
+    , mIce2(shaderDir + L"/GlassIce.hlsl", SdfObject::Shape::IceCube)
+    , mCup(shaderDir + L"/GlassIce.hlsl", SdfObject::Shape::Cup)
 {
+    // 氷: 屈折率 1.31、 吸収はごく弱く (小さな氷はほぼ無色)、 白い芯あり。 コップの底 (厚さ 1.2 cm) の上に積む
+    SdfObject* ices[] = { &mIce0, &mIce1, &mIce2 };
+    const Float3 positions[] = { { -0.15f, 0.145f, 0.06f }, { 0.14f, 0.145f, -0.07f }, { 0.0f, 0.445f, 0.0f } };
+    const float yaws[] = { 0.5f, -0.3f, 1.1f };
+    const float tilts[] = { 0.0f, 0.0f, 0.4f };
+    for (int i = 0; i < 3; ++i) {
+        ices[i]->setPosition(positions[i]);
+        ices[i]->setRotation(yaws[i], tilts[i]);
+        ices[i]->setRefractiveIndex(1.31f);
+        ices[i]->setAbsorption({ 0.10f, 0.04f, 0.02f });
+        ices[i]->setCoreDensity(15.0f);
+    }
+
+    // コップ: ガラス (屈折率 1.5)、 ほんの少し緑。 底が床 (y = 0) に着く高さ (CUP_H + CUP_T)
+    mCup.setPosition({ 0.0f, 0.406f, 0.0f });
+    mCup.setRefractiveIndex(1.5f);
+    mCup.setAbsorption({ 0.6f, 0.2f, 0.4f });
+    mCup.setCoreDensity(0.0f);
 }
 
-void GlassIceSample::initializeImplement(const RenderSetup& setup)
+std::vector<RenderEntity*> GlassIceSample::getParts()
 {
-    mPass.initialize(setup);
-}
-
-bool GlassIceSample::reloadImplement(std::string& error)
-{
-    return mPass.reload(error);
-}
-
-void GlassIceSample::drawImplement(const DrawContext& context)
-{
-    GlassIceConstants constants = {};
-    constants.step = static_cast<uint32_t>(mStep);
-    mPass.draw(context, &constants);
-}
-
-void GlassIceSample::onKey(WPARAM key)
-{
-    if (key >= '1' && key < '1' + kStepCount) mStep = static_cast<int>(key - '0');
+    return { &mIce0, &mIce1, &mIce2, &mCup };
 }
 
 std::wstring GlassIceSample::getStatus() const
 {
-    return L"段階 " + std::to_wstring(mStep) + L" / 7: " + kStepNames[mStep - 1] + L" (1〜7 で切り替え)";
+    return L"氷 3 つ + コップ 1 つ (部品 1 つ = 形 1 つ)";
+}
+
+// このクラス自身は描かない (部品が描く)
+void GlassIceSample::initializeImplement(const RenderSetup& setup)
+{
+    static_cast<void>(setup);
+}
+
+void GlassIceSample::drawImplement(const DrawContext& context)
+{
+    static_cast<void>(context);
+}
+
+bool GlassIceSample::reloadImplement(std::string& error)
+{
+    static_cast<void>(error);
+    return true;
 }

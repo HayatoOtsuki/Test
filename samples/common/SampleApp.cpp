@@ -65,6 +65,8 @@ int SampleApp::run(SampleEntity& sample, int showCommand)
     // 登録すると、 Renderer がサンプルの initializeImplement を呼ぶ (パイプラインなどを作る)
     mSample = &sample;
     mRenderer.addEntity(&sample);
+    const std::vector<RenderEntity*> parts = sample.getParts();
+    for (RenderEntity* part : parts) mRenderer.addEntity(part);
     updateTitle();
     mWindow.show(showCommand);
 
@@ -91,7 +93,8 @@ int SampleApp::run(SampleEntity& sample, int showCommand)
         mRenderer.renderFrame(mCamera, mSun, time);  // 背景 (空と床) → サンプルの drawImplement
     }
 
-    // サンプルはこの後で壊れるので、 先に一覧から外す
+    // サンプルと部品はこの後で壊れるので、 先に一覧から外す
+    for (RenderEntity* part : parts) mRenderer.removeEntity(part);
     mRenderer.removeEntity(&sample);
     mSample = nullptr;
     return 0;
