@@ -13,7 +13,7 @@ static_assert(sizeof(GlassIceConstants) == 4 * 4, "GlassIceConstants must be fou
 
 constexpr int kStepCount = 7;
 const wchar_t* const kStepNames[] = { L"強い吸収 (氷塊の色)", L"吸収を弱く (小さな氷はほぼ無色)", L"屈折 (歪み)",
-                                      L"全反射", L"白い芯", L"薄い影", L"コップ" };
+                                      L"全反射と後ろの面の映り込み", L"白い芯", L"薄い影", L"コップ" };
 
 } // namespace
 
