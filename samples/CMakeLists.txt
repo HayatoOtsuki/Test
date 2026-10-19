@@ -49,3 +49,7 @@ add_sample(Sample05BakedSdf 05_baked_sdf
     05_baked_sdf/SdfBaker.cpp 05_baked_sdf/SdfBaker.h
     05_baked_sdf/SdfTexture.cpp 05_baked_sdf/SdfTexture.h
 )
+add_sample(Sample06GlassIce 06_glass_ice
+    06_glass_ice/main.cpp
+    06_glass_ice/GlassIceSample.cpp 06_glass_ice/GlassIceSample.h
+)

@@ -323,6 +323,7 @@ flowchart TD
 | `03_raymarch` | レイマーチングだけ | 霧の玉 (密度の場) を一定の歩幅で進み、 吸収と散乱を足す。 太陽への 2 回目のレイマーチで影。 SDF は使わない | ↑ ↓: 歩数、 S: 影、 [ ]: 濃さ |
 | `04_sdf_raymarch` | SDF × レイマーチング | 02 の式の形を球追跡で描く。 法線・光・影 (くっきり / やわらか)。 歩数と法線を色で見る。 歩幅の倍率を変えて、 越える様子を見る | 1〜8: 形、 H: 表示、 S: 影、 ↑ ↓: 歩幅の倍率 |
 | `05_baked_sdf` | SDF を焼いて描く | CPU で SDF を格子に焼き、 3D テクスチャから読んで球追跡する (`generateSDF` の最小の形)。 短くするため、 箱のメッシュではなく全画面で描き、 画素ごとに箱との交差を調べる | 1〜5: 格子 8³〜128³、 G: 格子の線 |
+| `06_glass_ice` | コップの氷 (短い版) | 本体の SDF の氷を、 全画面のシェーダー 1 本に短くした物。 角の丸い立方体 3 つ (式の SDF)。 映り込み・屈折・全反射・吸収・白い芯・薄い影・コップを、 段階ごとに足して比べる | 1〜7: 段階 |
 
 ```
 samples/
@@ -366,6 +367,7 @@ samples/
 | 2 SDF 氷 | `feature/generate-sdf`, `feature/ice-optics` | SDF の氷が反射・屈折・吸収・全反射して見える |
 | 3 仕上げ | `feature/ice-bubbles`, `feature/ice-shadow`, `docs/guide`, `docs/presentation`, `docs/readme` | 白く濁った芯、 色付きの影、 実装の手順と参考文献、 発表のテンプレート、 README |
 | 4 簡易サンプル | `docs/samples-design`, `feature/samples-common`, `feature/sample-primitives`, `feature/sample-sdf`, `feature/sample-raymarch`, `feature/sample-sdf-raymarch`, `feature/sample-baked-sdf` | 機能ごとに 1 つずつ、 小さな exe で試せる |
+| 5 コップの氷 | `feature/sample-glass-ice` | 氷塊ではなくコップの氷に見せる要素を、 短いシェーダー 1 本で段階ごとに比べられる |
 
 各要素には `docs/` に解説を 1 つ付ける (必要なコードを載せ、 1 つずつ説明する)。
 エンジンの代わりの要素の解説は短く、 氷の部品の要素の解説を詳しくする。
