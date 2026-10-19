@@ -89,6 +89,10 @@ bool createPipeline(ID3D12Device* device, ID3D12RootSignature* rootSignature, co
     blend.BlendOp = blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
     blend.LogicOp = D3D12_LOGIC_OP_NOOP;
     blend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    if (options.blend) {
+        blend.BlendEnable = TRUE;
+        blend.DestBlend = blend.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+    }
     desc.SampleMask = UINT_MAX;
 
     desc.RasterizerState.FillMode = options.fill;

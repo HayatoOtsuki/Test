@@ -32,6 +32,7 @@ struct PipelineOptions {
     D3D12_CULL_MODE cull = D3D12_CULL_MODE_BACK;            // 描かない面 (三角形は外から見て反時計回りが表)
     bool depthTest = true;                                  // 手前の物だけを残すか
     bool depthWrite = true;                                 // 深度に書くか
+    bool blend = false;                                     // 半透明で重ねるか (色 × 1 + 前の色 × (1 − α)。 色は α を掛けて出す)
 };
 
 // file の VSMain と PSMain をコンパイルして PSO を作る。
