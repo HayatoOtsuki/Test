@@ -48,7 +48,7 @@
 cbuffer ObjectConstants : register(b1)
 {
     float4x4 world;        // 部品の空間 → ワールド (転置済み。 mul(float4(p, 1), world) と書く)
-    float4x4 invWorld;     // ワールド → 部品の空間
+    float4x4 invWorld;     // ワールド → 部品の空間 (world の逆行列。 ピクセルシェーダーの最初に 1 回だけ使う)
     float3   cameraPos;    // カメラの位置 (ワールド)
     uint     shape;        // 0 = 氷 (角の丸い立方体)、 1 = コップ
     float3   absorption;   // 1 m あたりの吸収 σ (赤・緑・青)
@@ -133,17 +133,6 @@ float fresnelSchlick(float cosTheta)
     return f0 + (1.0 - f0) * pow(1.0 - saturate(cosTheta), 5.0);
 }
 
-// 部品の空間 → ワールド (点は w = 1、 向きは w = 0。 向きは位置を動かさない)
-float3 toWorld(float3 p)
-{
-    return mul(float4(p, 1.0), world).xyz;
-}
-
-float3 toWorldDir(float3 d)
-{
-    return mul(float4(d, 0.0), world).xyz;
-}
-
 // ---- レイマーチング ----
 
 // 外から表面を探す (球追跡): SDF の値だけ進めば、 表面を越えない。 tMax まで進んで当たらなければ false
@@ -199,7 +188,7 @@ PSInput VSMain(VSInput input)
 {
     PSInput v;
     v.LPos = input.pos;
-    v.WPos = toWorld(input.pos);
+    v.WPos = mul(float4(input.pos, 1.0), world).xyz;  // 部品の空間 → ワールド
     v.Pos = mul(float4(v.WPos, 1.0), ViewProj);
     v.UV = input.uv;
     return v;
@@ -209,15 +198,16 @@ PSInput VSMain(VSInput input)
 
 float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
 {
-    // 光線を部品の空間で作る: カメラから、 この画素 (箱の裏面の点) へ
+    // 最初に 1 回だけ、 カメラを部品の空間へ (逆行列 invWorld)。 ここから先は全部、 部品の空間で計算する。
+    // ワールドへ戻すのは、 景色を読む所と深度だけ (mul(float4(点, 1), world)、 向きは mul(float4(向き, 0), world))
     float3 ro = mul(float4(cameraPos, 1.0), invWorld).xyz;
-    float3 rd = normalize(v.LPos - ro);
+    float3 rd = normalize(v.LPos - ro);  // カメラから、 この画素 (箱の裏面の点) へ
 
     // 1. 外から表面を探す。 箱の裏面まで進んでも当たらなければ、 この画素は描かない (後ろの物が残る)
     float t;
     if (!rayMarch(ro, rd, length(v.LPos - ro), t)) discard;
     float3 p = ro + rd * t;
-    float4 clip = mul(float4(toWorld(p), 1.0), ViewProj);
+    float4 clip = mul(mul(float4(p, 1.0), world), ViewProj);  // 部品の空間 → ワールド → 画面
     depth = clip.z / clip.w;  // 深度は箱の面ではなく当たった点の物 (重なった部品の前後が正しくなる)
 
     float3 col = float3(0.0, 0.0, 0.0);  // 目に届く光 (足していく)
@@ -229,7 +219,7 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
 
         // 2. 表面: 映り込みを足し、 残りは屈折して中へ
         float F = fresnelSchlick(dot(-rd, n));
-        col += thr * F * Environment(toWorld(p), toWorldDir(reflect(rd, n)));  // 反射の向き r = d − 2(d·n)n
+        col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);  // 反射の向き r = d − 2(d·n)n
         thr *= 1.0 - F;
         rd = refract(rd, n, 1.0 / ior);  // スネルの法則 (空気 → 中。 屈折率の比 1 / n)
         p -= n * EPS;
@@ -248,7 +238,7 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
             }
             F = fresnelSchlick(dot(outDir, n));
             // 後ろの面の映り込み: 出口で中へ跳ね返る分 F を、 跳ね返った向きの景色で近似する
-            col += thr * F * Environment(toWorld(p), toWorldDir(reflect(rd, n)));
+            col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);
             thr *= 1.0 - F;
             rd = outDir;  // 残りは曲がって外へ
             p += n * EPS;
@@ -271,6 +261,6 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
         float3 reflection = col / max(a, 1e-4);         // 映り込みの平均の色
         return float4(ToDisplay(reflection) * a, a);
     }
-    col += thr * Environment(toWorld(p), toWorldDir(rd));  // 氷: 出た向きの空と床
+    col += thr * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(rd, 0.0), world).xyz);  // 氷: 出た向きの空と床
     return float4(ToDisplay(col), 1.0);
 }
