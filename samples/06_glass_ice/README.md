@@ -316,7 +316,7 @@ HLSL の `refract` は、 全反射の角度では (0, 0, 0) を返す (Microsof
 
 ```hlsl
 F = fresnelSchlick(dot(outDir, n));
-col += thr * F * Environment(toWorld(p), toWorldDir(reflect(rd, n)));
+col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);
 thr *= 1.0 - F;
 ```
 
@@ -331,7 +331,7 @@ thr *= 1.0 - F;
 ### 氷: 出た向きの景色
 
 ```hlsl
-col += thr * Environment(toWorld(p), toWorldDir(rd));
+col += thr * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(rd, 0.0), world).xyz);
 return float4(ToDisplay(col), 1.0);
 ```
 
@@ -367,18 +367,28 @@ $$\text{結果} = \text{映り込み} \times a + \text{後ろの色} \times (1 -
 
 光線は部品の空間 (形の真ん中が原点、 回っていない) で追う。 そうすると SDF は位置も回転も持たない、 ただの形の式で済む。
 
+変換は 2 つの行列だけで、 関数は作らない:
+
+| 行列 | 向き | 使う所 |
+| --- | --- | --- |
+| `world` | 部品の空間 → ワールド | 頂点シェーダー (`v.WPos`)、 景色を読む所、 深度 |
+| `invWorld` (`world` の逆行列) | ワールド → 部品の空間 | ピクセルシェーダーの **最初に 1 回だけ** (カメラの位置) |
+
 ```hlsl
-float3 ro = mul(float4(cameraPos, 1.0), invWorld).xyz;  // カメラ → 部品の空間 (点: w = 1)
-float3 rd = normalize(v.LPos - ro);                     // カメラ → この画素の箱の点
+// 最初に 1 回だけ、 カメラを部品の空間へ。 ここから先は全部、 部品の空間で計算する
+float3 ro = mul(float4(cameraPos, 1.0), invWorld).xyz;  // 点なので w = 1
+float3 rd = normalize(v.LPos - ro);                     // カメラ → この画素の箱の点 (v.LPos はもう部品の空間)
 ```
 
-景色を読むときはワールドに戻す (`toWorld` は点 w = 1、 `toWorldDir` は向き w = 0。 向きは位置を動かさない)。
+`rd` は `v.LPos` (頂点シェーダーが変換する前の位置) から作るので、 向きの変換は要らない。
+
+ワールドへ戻すのは、 景色を読む所と深度だけ。 点は `mul(float4(p, 1.0), world)`、 向きは `mul(float4(d, 0.0), world)` と書く。 4 つ目の値 w が 1 なら行列の移動の部分が効き、 0 なら回転だけがかかる (向きは位置を持たないので、 移動させない)。
 `world` は C++ で 「傾き (z 軸まわり) → 向き (y 軸まわり) → 位置」 の順に掛けた行列 (`SdfObject::worldMatrix`)。 行ベクトルの流儀 (`p × M`) なので、 左から順にかかる。 HLSL は行列を列優先で読むので、 転置して渡す (`ViewProj` と同じ)。
 
 ### 深度
 
 ```hlsl
-float4 clip = mul(float4(toWorld(p), 1.0), ViewProj);
+float4 clip = mul(mul(float4(p, 1.0), world), ViewProj);  // 部品の空間 → ワールド → 画面
 depth = clip.z / clip.w;  // SV_Depth
 ```
 
