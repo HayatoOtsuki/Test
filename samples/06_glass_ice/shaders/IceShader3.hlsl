@@ -45,6 +45,10 @@
 // 【参考】
 //   LearnOpenGL "PBR Theory" (Fresnel equation)  https://learnopengl.com/PBR/Theory
 //   LearnOpenGL "Cubemaps" (Environment mapping・Reflection)  https://learnopengl.com/Advanced-OpenGL/Cubemaps
+//
+// 【コードの引用元】
+//   fresnelSchlick: Schlick の式 (1994) をそのまま書いた。 LearnOpenGL にも同じ式の関数があるが、 あちらのコード (CC BY-NC) は写していない
+//   col と thr で光を運ぶ形: 自分で書いた (光線の追跡でよくある、 「足す色」 と 「残りの割合」 を分ける書き方)
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

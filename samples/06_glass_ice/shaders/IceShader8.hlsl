@@ -47,6 +47,11 @@
 //   The Book of Shaders 第 12 章 セルラーノイズ (マスごとに点を置く考え方)  https://thebookofshaders.com/12/?lan=jp
 //   Inigo Quilez "intersectors" (光線と球の交点)  https://iquilezles.org/articles/intersectors
 //   Wikipedia "Total internal reflection" (密な物 → 疎な物で全反射)  https://en.wikipedia.org/wiki/Total_internal_reflection
+//
+// 【コードの引用元】
+//   nearestBubble: 「マスの番号から hash で点を決める」 は The Book of Shaders 第 12 章の考え方。 3D の気泡に使う形は自分で書いた
+//   マスを出るまでの距離: 自分で書いた (格子を光線でたどる、 スラブ法と同じ式 t = (面 − p) / rd)
+//   気泡を抜ける t = −b + √(b² − c): iq "intersectors" の光線と球の交点の式と同じ形
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

@@ -12,6 +12,9 @@
 
 ## 段階のファイル (IceShader0〜13)
 
+> **段階ごとの解説書: [STAGES.md](STAGES.md)**。 段階ごとに、 ねらい・考え方・仕組み (式)・実装の手順・コード・確かめ方・つまずきやすい所・参考文献・コードの引用元をまとめた。
+> この README は 「部品ごとの辞書」、 STAGES.md は 「作る順の手引き」。
+
 自分のエンジンに実装するときは、 **0 から順に 1 段ずつ** 足していく。 各ファイルのヘッダーに 「前の段から引き継ぐ物」 「今回足す物」 「仕組み」 「確かめること」 が書いてあり、 前の段から足した行には `★ 段階 N` の印がある。 前の段のファイルと見比べると、 足した所だけが分かる。
 サンプルを動かすと、 **0〜9 と ← → で段階を切り替えられる** (10〜13 は →。 タイトルバーに段階の名前が出る)。 C++ 側は全部の段階で同じ。
 
@@ -585,6 +588,10 @@ depth = clip.z / clip.w;  // SV_Depth
 | 内部散乱 (放射伝達の式) | PBR Book 第 4 版 [Volume Scattering Processes](https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes) | 英語。 吸収・外への散乱・中への散乱を順に説明 | 同上 |
 | 冷凍庫の氷が濁る理由 | Wikipedia [Ice cube](https://en.wikipedia.org/wiki/Ice_cube) の Clear and cloudy | 英語。 短い | 本文 CC BY-SA 4.0 (Wikipedia の通常の条件)。 写すなら表示と同じ条件での公開が要る |
 | 氷の屈折率 1.31 | Warren & Brandt 2008 ([DOI](https://doi.org/10.1029/2007JD009744)) | 論文 (値の出典) | 値は事実として使える |
+| 出口の 2 分探索 (段階 4) | Wikipedia [Bisection method](https://en.wikipedia.org/wiki/Bisection_method) | 英語。 区間を半分ずつ狭める手順 | 本文 CC BY-SA 4.0 |
+| 画素ごとのずらし (段階 10) | F. Toft ほか, "Optimisations for Real-Time Volumetric Cloudscapes", 2016 ([arXiv:1609.05344](https://arxiv.org/abs/1609.05344)) | 英語。 レイマーチの開始位置をでたらめにずらす | arXiv の利用許諾。 考え方だけ使った |
+| 画面空間の屈折 (段階 13) | T. Sousa, [Generic Refraction Simulation](https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-19-generic-refraction-simulation), GPU Gems 2 第 19 章, 2005 | 英語。 場面をテクスチャに描き、 ずらした位置で読む | © NVIDIA (All rights reserved)。 読むのは可、 コードは写さない |
+| 画面のコピー (段階 13) | Microsoft [CopyResource](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12graphicscommandlist-copyresource)・[Using Resource Barriers](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-resource-barriers-to-synchronize-resource-states-in-direct3d-12) | 英語。 コピーの条件と、 状態の切り替え | Microsoft の文書 |
 
 ほかの文献と利用条件の詳しい確かめ方: [docs/guide/references.md](../../docs/guide/references.md)
 

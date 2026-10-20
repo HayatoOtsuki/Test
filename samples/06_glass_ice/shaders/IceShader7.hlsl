@@ -43,6 +43,9 @@
 // 【参考】
 //   PBR Book "Volume Scattering Processes" (吸収・散乱・放射伝達の式)  https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes
 //   Wikipedia "Ice cube" の Clear and cloudy (氷が濁る理由)  https://en.wikipedia.org/wiki/Ice_cube
+//
+// 【コードの引用元】
+//   白い芯: 式 (a = 1 − exp(−σs × 歩幅)) は PBR Book の透過率から。 「届く光を決まった白」 にする省略と、 5〜11 cm の値は、 このサンプルで決めた
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

@@ -43,6 +43,12 @@
 // 【参考】
 //   The Book of Shaders 第 10 章 ランダム・第 11 章 ノイズ (日本語)  https://thebookofshaders.com/10/?lan=jp  https://thebookofshaders.com/11/?lan=jp
 //   PBR Book "Transmittance" (ランベルト・ベールの法則)  https://pbr-book.org/4ed/Volume_Scattering/Transmittance
+//
+// 【コードの引用元】
+//   hash: The Book of Shaders 第 10 章の sin のハッシュの考え方。 43758.5453 は同じ章にも出てくる、 広く使われている値。
+//     内積の係数 (127.1, 311.7, 74.7) も広く使われている値。 3D 用の形は自分で書いた
+//   noise: 第 11 章の値ノイズ (2D) を、 3D (角 8 つの三線形補間) に自分で広げた
+//   吸収 exp(−σa × 歩幅): PBR Book の透過率の式をそのまま使った
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

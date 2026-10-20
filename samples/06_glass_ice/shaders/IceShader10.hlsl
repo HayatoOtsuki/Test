@@ -46,6 +46,14 @@
 // 【参考】
 //   PBR Book "Volume Scattering Processes" (吸収・散乱・放射伝達の式)  https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes
 //   PBR Book "Transmittance" (ランベルト・ベールの法則)  https://pbr-book.org/4ed/Volume_Scattering/Transmittance
+//   PBR Book "Phase Functions" (向きの偏りが無い散乱 = 等方の位相関数)  https://pbr-book.org/4ed/Volume_Scattering/Phase_Functions
+//   F. Toft, J. Bowles, D. Zimmermann, "Optimisations for Real-Time Volumetric Cloudscapes", 2016
+//     (レイマーチの開始位置を画素ごとにでたらめにずらして、 歩数を減らしたときの縞を消す)  https://arxiv.org/abs/1609.05344
+//
+// 【コードの引用元】
+//   scatterInside: PBR Book の放射伝達の式を、 「一回散乱・一定の歩幅」 に省いて自分で書いた
+//   jitter (画素ごとに歩の位置をずらす): Toft ほか 2016 の考え方。 hash(画面の位置) で作る形は自分で書いた
+//   scatterDensity (SDF の層 × ノイズ): 自分で書いた (このサンプルで決めた形と値)
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
