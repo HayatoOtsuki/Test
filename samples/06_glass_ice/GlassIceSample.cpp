@@ -2,24 +2,24 @@
 
 namespace {
 
-constexpr int kStageCount = 11;  // IceShader0 〜 IceShader10
+constexpr int kStageCount = 14;  // IceShader0 〜 IceShader13
 const wchar_t* const kStageNames[kStageCount] = { L"箱を描く", L"形を探す (球追跡)", L"法線と光 (不透明)",
                                                   L"透明にする (映り込みと透過)", L"屈折 (歪み)", L"全反射と後ろの面",
-                                                  L"吸収と溶けかけの形", L"白い芯 (内部散乱)", L"気泡", L"亀裂",
-                                                  L"コップ (完成)" };
+                                                  L"吸収と溶けかけの形", L"白い芯 (内部散乱の簡単版)", L"気泡", L"亀裂",
+                                                  L"体積の散乱 (層 × ノイズ)", L"散乱の影 (太陽への光)",
+                                                  L"前方散乱", L"周りの景色 (画面のコピー、 完成)" };
 
 } // namespace
 
 GlassIceSample::GlassIceSample(const std::wstring& shaderDir)
     : mShaderDir(shaderDir)
-    , mIce0(shaderDir + L"/IceShader10.hlsl", SdfObject::Shape::IceCube)
-    , mIce1(shaderDir + L"/IceShader10.hlsl", SdfObject::Shape::IceCube)
-    , mIce2(shaderDir + L"/IceShader10.hlsl", SdfObject::Shape::IceCube)
-    , mCup(shaderDir + L"/IceShader10.hlsl", SdfObject::Shape::Cup)
+    , mIce0(shaderDir + L"/IceShader13.hlsl")
+    , mIce1(shaderDir + L"/IceShader13.hlsl")
+    , mIce2(shaderDir + L"/IceShader13.hlsl")
 {
-    // 氷: 屈折率 1.31、 吸収はごく弱く (小さな氷はほぼ無色)、 白い芯あり。 コップの底 (厚さ 1.2 cm) の上に積む
+    // 氷: 屈折率 1.31、 吸収はごく弱く (小さな氷はほぼ無色)、 白い芯あり。 床 (y = 0) の上に 2 つ並べ、 その上に 1 つ載せる (氷の高さ 26 cm)
     SdfObject* ices[] = { &mIce0, &mIce1, &mIce2 };
-    const Float3 positions[] = { { -0.15f, 0.145f, 0.06f }, { 0.14f, 0.145f, -0.07f }, { 0.0f, 0.445f, 0.0f } };
+    const Float3 positions[] = { { -0.15f, 0.13f, 0.06f }, { 0.14f, 0.13f, -0.07f }, { 0.0f, 0.43f, 0.0f } };
     const float yaws[] = { 0.5f, -0.3f, 1.1f };
     const float tilts[] = { 0.0f, 0.0f, 0.4f };
     for (int i = 0; i < 3; ++i) {
@@ -28,29 +28,20 @@ GlassIceSample::GlassIceSample(const std::wstring& shaderDir)
         ices[i]->setRefractiveIndex(1.31f);
         ices[i]->setAbsorption({ 0.10f, 0.04f, 0.02f });
         ices[i]->setCoreDensity(15.0f);
+        ices[i]->setEnvironmentMap(&mEnvironment);  // 全部の氷が、 同じ環境マップ (周りの景色) を読む
     }
-
-    // 全部の部品が、 同じ環境マップ (周りの景色) を読む
-    for (SdfObject* part : { &mIce0, &mIce1, &mIce2, &mCup }) part->setEnvironmentMap(&mEnvironment);
-
-    // コップ: ガラス (屈折率 1.5)、 ほんの少し緑。 底が床 (y = 0) に着く高さ (CUP_H + CUP_T)
-    mCup.setPosition({ 0.0f, 0.406f, 0.0f });
-    mCup.setRefractiveIndex(1.5f);
-    mCup.setAbsorption({ 0.6f, 0.2f, 0.4f });
-    mCup.setCoreDensity(0.0f);
 }
 
 std::vector<RenderEntity*> GlassIceSample::getParts()
 {
-    return { &mIce0, &mIce1, &mIce2, &mCup };
+    return { &mIce0, &mIce1, &mIce2 };
 }
 
 void GlassIceSample::setStage(int stage)
 {
     mStage = stage;
     const std::wstring file = mShaderDir + L"/IceShader" + std::to_wstring(stage) + L".hlsl";
-    for (SdfObject* part : { &mIce0, &mIce1, &mIce2, &mCup }) part->setShaderFile(file);
-    mCup.setVisible(stage == kStageCount - 1);  // コップは段階 10 (完成) だけ
+    for (SdfObject* part : { &mIce0, &mIce1, &mIce2 }) part->setShaderFile(file);
 }
 
 void GlassIceSample::onKey(WPARAM key)
@@ -75,6 +66,7 @@ void GlassIceSample::drawImplement(const DrawContext& context)
 {
     // 太陽の向きか色が変わっていたら、 環境マップを作り直す (最初のフレームも)
     mEnvironment.update(context.commandList, context.scene.lightDirection, context.scene.lightColor);
+    mEnvironment.setSceneCopy(context.sceneCopy);  // 背景を描いた直後の画面のコピー (段階 13 で、 屈折した先の周りの景色を読む)
 }
 
 bool GlassIceSample::reloadImplement(std::string& error)
