@@ -7,6 +7,8 @@
 // 氷を 3 つ出すなら、 この部品を 3 つ置くだけ。
 // =============================================================================
 
+#include "EnvironmentMap.h"
+
 #include "engine/MathTypes.h"
 #include "engine/RenderEntity.h"
 
@@ -28,6 +30,7 @@ public:
     void setAbsorption(const Float3& sigma) { mAbsorption = sigma; }  // 1 m あたりの吸収 (赤・緑・青)
     void setCoreDensity(float density) { mCoreDensity = density; }    // 白い芯の濃さ (1/m)。 0 なら芯なし
     void setVisible(bool visible) { mVisible = visible; }             // false なら描かない
+    void setEnvironmentMap(const EnvironmentMap* map) { mEnvironment = map; }  // 周りの景色 (t0 のキューブマップ)
 
     // 使うシェーダーを変える。 次に描くときにコンパイルし直す (失敗したら前のシェーダーのまま)
     void setShaderFile(const std::wstring& shaderFile);
@@ -47,6 +50,7 @@ private:
     Float3 mAbsorption = { 0.10f, 0.04f, 0.02f };
     float mCoreDensity = 0.0f;
     bool mVisible = true;
+    const EnvironmentMap* mEnvironment = nullptr;
     bool mShaderChanged = false;  // setShaderFile の後、 まだコンパイルし直していない
 
     ID3D12Device* mDevice = nullptr;
