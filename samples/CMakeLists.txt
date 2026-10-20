@@ -53,4 +53,6 @@ add_sample(Sample06GlassIce 06_glass_ice
     06_glass_ice/main.cpp
     06_glass_ice/GlassIceSample.cpp 06_glass_ice/GlassIceSample.h
     06_glass_ice/SdfObject.cpp 06_glass_ice/SdfObject.h
+    06_glass_ice/EnvironmentImage.cpp 06_glass_ice/EnvironmentImage.h
+    06_glass_ice/EnvironmentMap.cpp 06_glass_ice/EnvironmentMap.h
 )

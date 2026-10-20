@@ -30,6 +30,9 @@ GlassIceSample::GlassIceSample(const std::wstring& shaderDir)
         ices[i]->setCoreDensity(15.0f);
     }
 
+    // 全部の部品が、 同じ環境マップ (周りの景色) を読む
+    for (SdfObject* part : { &mIce0, &mIce1, &mIce2, &mCup }) part->setEnvironmentMap(&mEnvironment);
+
     // コップ: ガラス (屈折率 1.5)、 ほんの少し緑。 底が床 (y = 0) に着く高さ (CUP_H + CUP_T)
     mCup.setPosition({ 0.0f, 0.406f, 0.0f });
     mCup.setRefractiveIndex(1.5f);
@@ -62,15 +65,16 @@ std::wstring GlassIceSample::getStatus() const
     return L"IceShader" + std::to_wstring(mStage) + L".hlsl: " + kStageNames[mStage] + L" (0〜9 と ← → で段階を切り替え)";
 }
 
-// このクラス自身は描かない (部品が描く)
+// このクラス自身は描かない (部品が描く)。 部品より先に呼ばれるので、 ここで環境マップを用意する
 void GlassIceSample::initializeImplement(const RenderSetup& setup)
 {
-    static_cast<void>(setup);
+    mEnvironment.initialize(setup.device);
 }
 
 void GlassIceSample::drawImplement(const DrawContext& context)
 {
-    static_cast<void>(context);
+    // 太陽の向きか色が変わっていたら、 環境マップを作り直す (最初のフレームも)
+    mEnvironment.update(context.commandList, context.scene.lightDirection, context.scene.lightColor);
 }
 
 bool GlassIceSample::reloadImplement(std::string& error)

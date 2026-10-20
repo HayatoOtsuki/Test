@@ -20,7 +20,7 @@
 | [0](shaders/IceShader0.hlsl) | 箱を描く (頂点シェーダーで 1 回だけ変換、 部品の空間の位置を色に) | 色の付いた箱が見える。 中に入っても消えない (裏面を描いている) | ![0](images/stage0.png) |
 | [1](shaders/IceShader1.hlsl) | 形の式 (SDF)、 球追跡、 discard、 深度 | 角の丸い白い立方体。 重なりの前後が正しい | ![1](images/stage1.png) |
 | [2](shaders/IceShader2.hlsl) | 法線 (中心差分)、 ランバートの光 | 太陽の側が明るい。 J / L で明るい面が回る | ![2](images/stage2.png) |
-| [3](shaders/IceShader3.hlsl) | フレネルの映り込み、 まっすぐ透かす (屈折なし)。 col と thr で光を運ぶ形 | ほとんど見えない (正面は透明、 縁だけ映る)。 これが 「屈折の無い透明」 | ![3](images/stage3.png) |
+| [3](shaders/IceShader3.hlsl) | フレネルの映り込み、 まっすぐ透かす (屈折なし)。 col と thr で光を運ぶ形 | うっすらとしか見えない (正面は透明、 縁だけ映る)。 これが 「屈折の無い透明」 | ![3](images/stage3.png) |
 | [4](shaders/IceShader4.hlsl) | 屈折 (入口と出口)、 中を出口まで進む | 床の模様が曲がる。 **ここで急に氷らしくなる** | ![4](images/stage4.png) |
 | [5](shaders/IceShader5.hlsl) | 全反射、 後ろの面の映り込み | 面ごとのまだら、 縁が銀色に光る | ![5](images/stage5.png) |
 | [6](shaders/IceShader6.hlsl) | ノイズ、 溶けかけのでこぼこ、 吸収 (ランベルト・ベール) | 屈折した模様がゆるく波打つ | ![6](images/stage6.png) |
@@ -54,7 +54,9 @@
 | --- | --- |
 | [`shaders/IceShader0〜10.hlsl`](shaders/IceShader10.hlsl) | 形 1 つを描くシェーダー (段階ごと)。 関数はノイズ・SDF・法線・フレネル・気泡・亀裂・レイマーチング。 描く流れは `PSMain` |
 | [`SdfObject.h`](SdfObject.h) / [`.cpp`](SdfObject.cpp) | 部品 (RenderEntity)。 形を囲む箱を描く。 位置・回転・屈折率・吸収・白い芯をセッターで決める |
-| [`GlassIceSample.h`](GlassIceSample.h) / [`.cpp`](GlassIceSample.cpp) | 氷 3 つとコップ 1 つを置く (自分は描かない)。 キーで段階 (シェーダーのファイル) を切り替える |
+| [`GlassIceSample.h`](GlassIceSample.h) / [`.cpp`](GlassIceSample.cpp) | 氷 3 つとコップ 1 つを置く (自分は描かない)。 キーで段階 (シェーダーのファイル) を切り替える。 毎フレーム最初に環境マップを更新する |
+| [`EnvironmentImage.h`](EnvironmentImage.h) / [`.cpp`](EnvironmentImage.cpp) | 環境マップ (キューブマップ) の 6 面を CPU で作る (背景と同じ式) |
+| [`EnvironmentMap.h`](EnvironmentMap.h) / [`.cpp`](EnvironmentMap.cpp) | 6 面をキューブマップのテクスチャにして送る。 シェーダーは t0 で読む |
 
 ピクセルシェーダーの引数は `v` で、 `v.Pos` (画面の位置)・`v.LPos` (部品の空間の位置)・`v.WPos` (ワールドの位置)・`v.UV` が取れる。 カメラの位置は `cameraPos`。
 
@@ -398,7 +400,7 @@ HLSL の `refract` は、 全反射の角度では (0, 0, 0) を返す (Microsof
 
 ```hlsl
 F = fresnelSchlick(dot(outDir, n));
-col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);
+col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;
 thr *= 1.0 - F;
 ```
 
@@ -410,16 +412,35 @@ thr *= 1.0 - F;
 
 ## 11. 景色と、 コップの重ね方
 
-### 氷: 出た向きの景色
+### 景色は環境マップから読む
 
 ```hlsl
-col += thr * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(rd, 0.0), world).xyz);
+TextureCube<float4> envMap : register(t0);  // 周りの景色のキューブマップ
+SamplerState envSampler : register(s0);     // 線形補間
+
+col += thr * envMap.SampleLevel(envSampler, mul(float4(rd, 0.0), world).xyz, 0).rgb;  // 出た向きの景色
 return float4(col, 1.0);  // 色 (光の強さのまま) と α
 ```
 
-最後に出た向きの景色 (空と床) に、 残った割合 `thr` を掛けて足し、 **`float4(色, α)` を返すだけ**。 `Environment` はエンジンの代わりの部分 ([`src/engine/shaders/Environment.hlsli`](../../src/engine/shaders/Environment.hlsli))。
+最後に出た向きの景色に、 残った割合 `thr` を掛けて足し、 **`float4(色, α)` を返すだけ**。 映り込み・後ろの面・気泡・亀裂の映り込みも、 全部同じく向きで環境マップを読む。
 
-返す色は **光の強さのまま** (1 を超えてもよい)。 表示用の色への変換 (`ToDisplay`: トーンマップとガンマ) は、 エンジンがシーンを全部描き終えた後に 1 回だけする ([`Display.hlsl`](../../src/engine/shaders/Display.hlsl)、 [docs/01-dx12-base.md](../../docs/01-dx12-base.md))。 自分のエンジンでも、 後処理でこの変換をしているなら、 シェーダーは色をそのまま返せばよい。 自分のエンジンでは、 キューブマップか、 不透明な物を描いた画面のコピーを、 この向きで読む所になる。
+**環境マップ (キューブマップ)** は、 周りの景色を、 立方体の 6 つの面 (+X, −X, +Y, −Y, +Z, −Z) の画像にしておく物。 向きを渡すと、 その向きの延長が当たる面の画素の色 (となりと線形補間) が返る。 「遠くの景色は、 向きだけで決まる」 とみなす方法で、 ゲームの映り込みや屈折の多くはこれ。
+
+- 向きはワールドの向きなので、 部品の空間の向きを `mul(float4(向き, 0), world)` でワールドへ直してから読む。
+- 氷のシェーダーは、 **エンジンの関数を 1 つも使わない**。 使うのは定数バッファ (`ViewProj`・`LightDirection`・`LightColor` と、 部品の定数) と、 この環境マップだけ。 自分のエンジンでは、 スカイボックスのキューブマップを t0 に渡せばよい。
+- サンプルでは、 背景と同じ式 (空・太陽・床・霧) で C++ が 6 面を作る ([`EnvironmentImage.cpp`](EnvironmentImage.cpp))。 コップの真ん中 (0, 0.4, 0) から見た景色で、 1 面 128 × 128。 太陽を J / L で回したら作り直す ([`EnvironmentMap.cpp`](EnvironmentMap.cpp))。
+- 近似: 床は本当は近くにあるので、 見る場所で模様の見え方が変わる。 環境マップはコップの真ん中から見た 1 枚なので、 氷の場所ごとの違いは無視している。 氷どうしが近いので、 差は小さい。
+
+**面の向きの決まり** (D3D のキューブマップ): 面の画素 (x, y) は、 $u = 2\frac{x + 0.5}{n} - 1$、 $v = 2\frac{y + 0.5}{n} - 1$ (y は上から下) として
+
+| 面 | 向き | 面 | 向き | 面 | 向き |
+| --- | --- | --- | --- | --- | --- |
+| +X | $(1, -v, -u)$ | +Y | $(u, 1, v)$ | +Z | $(u, -v, 1)$ |
+| −X | $(-1, -v, u)$ | −Y | $(u, -1, -v)$ | −Z | $(-u, -v, -1)$ |
+
+の向きの景色を入れる。 C++ の値は、 エンジンの背景の HLSL と同じ向きで小数第 5 位まで一致することを確かめた。
+
+返す色は **光の強さのまま** (1 を超えてもよい)。 表示用の色への変換 (`ToDisplay`: トーンマップとガンマ) は、 エンジンがシーンを全部描き終えた後に 1 回だけする ([`Display.hlsl`](../../src/engine/shaders/Display.hlsl)、 [docs/01-dx12-base.md](../../docs/01-dx12-base.md))。 自分のエンジンでも、 後処理でこの変換をしているなら、 シェーダーは色をそのまま返せばよい。
 
 部品 1 つは自分の形しか知らないので、 氷を通して隣の氷は見えない (景色だけが見える)。 数個が触れ合っているくらいなら、 見た目の差は小さい。
 
@@ -545,7 +566,10 @@ depth = clip.z / clip.w;  // SV_Depth
 | コップ: `float4(映り込み, 1 − 透過率)` とブレンド | 薄い物を後ろの絵に重ねる (映り込み + 後ろ × 透過率) | **このサンプルの近似** (壁が薄いので曲がりを無視する)。 ブレンドの式は D3D12 のブレンドの設定 (§11) |
 | `discard` | 形に当たらない画素を描かない | HLSL の命令 ([Microsoft](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/discard--sm4---asm-)) |
 | `SV_Depth` | 当たった点の深度を書く | HLSL のセマンティクス ([Microsoft](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics)) |
-| `Environment` / `ToDisplay` | 景色 (空・床) / 表示用の色にする (エンジンが最後に 1 回だけ。 シェーダーは呼ばない) | このリポジトリのエンジンの代わり ([docs/02-environment.md](../../docs/02-environment.md))。 `ToDisplay` のトーンマップは Narkowicz 2016 の ACES の近似 ([記事](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/)、 記事のコードは CC0 または MIT) |
+| `envMap` / `envSampler` (t0 / s0) | 景色 (環境マップ) を向きで読む | キューブマップ (LearnOpenGL "Cubemaps" の Environment mapping)。 中身は **このサンプルで作った物** (背景と同じ式、 コップの真ん中から見た景色) |
+| `EnvironmentImage` / `EnvironmentMap` (C++) | 6 面を CPU で作り、 キューブマップとして送る | 面の向きの表は D3D (と OpenGL) のキューブマップの決まり。 6 枚の 2D 配列を `D3D12_SRV_DIMENSION_TEXTURECUBE` で見る。 太陽が変わったら作り直すのは **このサンプルの作り** |
+| `LightDirection` / `LightColor` | 太陽への向き / 色 × 強さ (段階 2 のランバート) | エンジンのシーンの定数バッファ (b0) を直接読む ([docs/04-camera-light.md](../../docs/04-camera-light.md)) |
+| `Environment` / `ToDisplay` (エンジン) | 背景 (空・床) を描く / 表示用の色にする (エンジンが最後に 1 回だけ) | 氷のシェーダーは使わない (背景と環境マップを作る C++ だけが同じ式)。 このリポジトリのエンジンの代わり | このリポジトリのエンジンの代わり ([docs/02-environment.md](../../docs/02-environment.md))。 `ToDisplay` のトーンマップは Narkowicz 2016 の ACES の近似 ([記事](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/)、 記事のコードは CC0 または MIT) |
 
 ### C++ (SdfObject.cpp)
 

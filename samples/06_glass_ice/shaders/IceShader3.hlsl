@@ -22,6 +22,7 @@
 //
 // 【今回足す物】
 //   ・fresnelSchlick: 映り込む割合 (フレネル、 Schlick の近似)
+//   ・envMap (t0) / envSampler (s0): 環境マップ (周りの景色のキューブマップ)。 向きを渡すと、 その向きの景色の色が返る
 //   ・ピクセルシェーダー: 表面で映り込みを足し、 残りは 「曲げずに」 まっすぐ透かした景色を足す
 //   ・col (足していく光) と thr (まだ届く割合) の 2 つで光を運ぶ形にする。 ここから先は全部この形
 //
@@ -29,6 +30,9 @@
 //   フレネル: 光が表面に当たると、 一部は映り込み、 残りが中へ入る。 映り込む割合 F は、 正面ではわずか (氷 1.8%)、
 //     浅い角度 (縁) ほど 1 に近づく。 F = F0 + (1 − F0)(1 − cosθ)⁵、 F0 = ((n − 1) / (n + 1))²。
 //   反射の向き: r = d − 2(d·n)n (HLSL の reflect)。 その向きの景色が映り込みの色。
+//   環境マップ: 周りの景色を 6 面の画像 (キューブマップ) にしておき、 向きで読む (envMap.SampleLevel(envSampler, 向き, 0))。
+//     向きはワールドの向きなので、 部品の空間の向きを mul(float4(向き, 0), world) で直してから読む。
+//     サンプルでは背景と同じ式で C++ が作る (EnvironmentImage)。 自分のエンジンでは、 スカイボックスのキューブマップを渡せばよい。
 //   col / thr: 目に届く光を col に足し、 まだ先へ届く割合を thr に掛けて減らしていく。 映り込みを足したら thr *= 1 − F。
 //
 // 【確かめること】
@@ -37,10 +41,10 @@
 //
 // 【参考】
 //   LearnOpenGL "PBR Theory" (Fresnel equation)  https://learnopengl.com/PBR/Theory
-//   LearnOpenGL "Cubemaps" (Reflection)          https://learnopengl.com/Advanced-OpenGL/Cubemaps
+//   LearnOpenGL "Cubemaps" (Environment mapping・Reflection)  https://learnopengl.com/Advanced-OpenGL/Cubemaps
 // =============================================================================
 
-#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment)
+#include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
 
 // 部品 1 つ分の定数。 C++ の SdfObject の ObjectConstants と同じ並び。 全部の段階で同じ (C++ は段階で変わらない)
 cbuffer ObjectConstants : register(b1)
@@ -56,6 +60,9 @@ cbuffer ObjectConstants : register(b1)
     float2   objectPad;    // 16 バイトにそろえるための詰め物 (使わない)
 };
 
+// 環境マップ (周りの景色のキューブマップ)。 向きを渡すと、 その向きの景色の色 (光の強さ) が返る。 段階 3 から使う
+TextureCube<float4> envMap : register(t0);
+SamplerState envSampler : register(s0);  // 線形補間 (C++ の静的サンプラー)
 static const float ICE_HALF = 0.13;           // 氷の半分の大きさ (m)。 1 辺 26 cm (場面は本物の約 8 倍)
 static const float ICE_ROUND = 0.035;         // 氷の角の丸みの半径 (m)
 static const float HIT_EPS = 0.0002;          // 表面まで、 これより近ければ 「当たった」 (m)。 0.2 mm
@@ -159,8 +166,8 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
     // ★ 段階 3: 透明にする。 表面で映り込み (フレネル) を足し、 残りは曲げずにまっすぐ透かす
     float3 n = calcNormal(p);                                                 // 表面の法線
     float F = fresnelSchlick(dot(-rd, n));                                    // 映り込む割合 (フレネル)
-    col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);  // 反射の向き r = d − 2(d·n)n の景色
+    col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;  // 反射の向き r = d − 2(d·n)n の景色
     thr *= 1.0 - F;                                                           // 残りの割合が通り抜ける
-    col += thr * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(rd, 0.0), world).xyz);  // まっすぐ透かした景色 (屈折なし)
+    col += thr * envMap.SampleLevel(envSampler, mul(float4(rd, 0.0), world).xyz, 0).rgb;  // まっすぐ透かした景色 (屈折なし)
     return float4(col, 1.0);                                                  // 色 (光の強さのまま) と α (1 = 上書き)
 }
