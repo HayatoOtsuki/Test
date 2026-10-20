@@ -10,6 +10,7 @@ Renderer::Renderer(HWND hwnd, UINT width, UINT height, const std::wstring& shade
     : mSwapChain(mDevice, hwnd, width, height)
     , mDepthBuffer(mDevice.getDevice(), width, height)
     , mSceneColor(mDevice.getDevice(), width, height)
+    , mSceneCopy(mDevice.getDevice(), width, height)
     , mBackground(mDevice.getDevice(), SceneColorBuffer::kFormat, DepthBuffer::kFormat, shaderRoot + L"/Background.hlsl")
     , mDisplay(mDevice.getDevice(), SwapChain::kFormat, shaderRoot + L"/Display.hlsl")
 {
@@ -139,6 +140,15 @@ DrawContext Renderer::beginFrame(const OrbitCamera& camera, const DirectionalLig
 
     // 7. 背景 (空と床)。 深度には書かないので、 後から描く物がいつも手前に出る
     mBackground.draw(mCommandList.Get(), context.sceneConstants);
+
+    // 8. 背景を描いた画面をコピーしておく。 透ける物 (氷) が、 屈折した先の周りの景色をここから読む。
+    //    コピーの間だけ、 シーンの描画先を 「コピー元」、 コピー先を 「コピー先」 の状態にする
+    transition(mSceneColor.getResource(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    transition(mSceneCopy.getResource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+    mCommandList->CopyResource(mSceneCopy.getResource(), mSceneColor.getResource());
+    transition(mSceneCopy.getResource(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    transition(mSceneColor.getResource(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    context.sceneCopy = mSceneCopy.getResource();
     return context;
 }
 
@@ -172,6 +182,7 @@ void Renderer::resize(UINT width, UINT height)
     mSwapChain.resize(width, height);
     mDepthBuffer.resize(width, height);
     mSceneColor.resize(width, height);
+    mSceneCopy.resize(width, height);
 }
 
 bool Renderer::reloadShaders(std::string& error)

@@ -1,7 +1,7 @@
 // =============================================================================
-// IceShader4.hlsl — コップの氷 段階 4: 屈折 (歪み)
+// IceShader4.hlsl — 氷 段階 4: 屈折 (歪み)
 //
-// 作る順に 1 段ずつ足していくシェーダーの、 途中の段。 完成形は IceShader10.hlsl (参考文献と全部の解説もそこ)。
+// 作る順に 1 段ずつ足していくシェーダーの、 途中の段。 完成形は IceShader13.hlsl (参考文献と全部の解説もそこ)。
 // 前の段から足した行には 「★ 段階 N」 と書いてある。 前の段のファイルと見比べると、 足した所が分かる。
 //
 // 【段階】
@@ -12,10 +12,13 @@
 //    4. 屈折 (歪み)  ← 今回
 //    5. 全反射と後ろの面
 //    6. 吸収と溶けかけの形
-//    7. 白い芯 (内部散乱)
+//    7. 白い芯 (内部散乱の簡単版)
 //    8. 気泡
 //    9. 亀裂
-//   10. コップ (完成)
+//   10. 体積の散乱 (層 × ノイズ)
+//   11. 散乱の影 (太陽への光)
+//   12. 前方散乱
+//   13. 周りの景色 (画面のコピー、 完成)
 //
 // 【前の段から引き継ぐ物】
 //   形・球追跡・法線・フレネル・col / thr。 段階 3 の 「まっすぐ透かす」 は、 屈折して中を通る形に置き換わる。
@@ -24,18 +27,21 @@
 //   ・入口で屈折して中へ (refract、 屈折率の比 1 / n)
 //   ・rayMarchInside: 中を出口 (後ろの面) まで進む
 //   ・出口で屈折して外へ (refract、 比 n / 1、 法線は −n)
-//   ・外へ出た光が、 同じ形にまた当たるかを調べるループ (entry)。 氷ではほとんど 1 回で終わる (コップの段で効く)
 //
 // 【仕組み】
 //   スネルの法則: n1 sinθ1 = n2 sinθ2。 屈折率の違う物の境目で光は曲がる。 入るときは法線に近づき、 出るときは離れる。
 //     HLSL の refract(入る向き, 光線と向かい合う法線, 屈折率の比 n1 / n2) が曲がった向きを返す。
-//   中を進む: 中では SDF が負で、 −SDF が 「いちばん近い表面までの距離」。 外と同じく、 その分進めば表面を越えない。
+//   中を進む: 中では SDF が負で、 −SDF が 「いちばん近い表面までの距離」。 1 歩はその距離 (ただし 2 mm〜2 cm に収める)。
+//     「表面に近づいたら出口」 とはせず、 SDF が正 (外) になるまで進んでから、 中の最後の点と外の点の間を 2 分探索で詰める。
+//     −SDF だけ進む形だと、 斜めの光線が面とほぼ平行に表面のすぐ近くを進むとき、 歩幅が小さくなって歩数を使い切ったり、
+//     出ていないのに出口と判断したりして、 斜めから見ると中の面が重なって見える。
 //   歪み: 曲がった向きで景色を読むと、 向こうがずれて見える。 面の向き・中を通る長さ・出口の面の向きで、 ずれ方が勝手に変わる。
 //   この段では全反射をまだ扱わない (出られないはずの光も、 まっすぐ出してしまう)。
 //
 // 【確かめること】
 //   ・氷を通した床の模様が、 曲がって見える (ここで急に氷らしくなる)
 //   ・角の近くで、 景色が大きく引き伸ばされる
+//   ・斜めから見ても、 中の面が二重に重なって見えない
 //
 // 【参考】
 //   LearnOpenGL "Cubemaps" (Refraction)  https://learnopengl.com/Advanced-OpenGL/Cubemaps
@@ -50,12 +56,9 @@ cbuffer ObjectConstants : register(b1)
     float4x4 world;        // 部品の空間 → ワールドの行列 (転置済み。 mul(float4(p, 1), world) と書く)
     float4x4 invWorld;     // ワールド → 部品の空間の行列 (world の逆行列。 ピクセルシェーダーの最初に 1 回だけ使う)
     float3   cameraPos;    // カメラの位置 (ワールド)
-    uint     shape;        // 形の番号: 0 = 氷 (角の丸い立方体)、 1 = コップ (段階 10 から)
+    float    ior;          // 屈折率 n (氷 1.31)。 段階 3 から使う
     float3   absorption;   // 1 m あたりの吸収の強さ σa (赤・緑・青)。 段階 6 から使う
-    float    ior;          // 屈折率 n (氷 1.31、 ガラス 1.5)。 段階 3 から使う
     float    coreDensity;  // 白い芯の気泡の濃さ σs (1/m)。 0 なら芯なし。 段階 7 から使う
-    uint     thin;         // 1 = 薄い物 (コップ): 後ろに描いてある物に半透明で重ねる。 段階 10 から使う
-    float2   objectPad;    // 16 バイトにそろえるための詰め物 (使わない)
 };
 
 // 環境マップ (周りの景色のキューブマップ)。 向きを渡すと、 その向きの景色の色 (光の強さ) が返る。 段階 3 から使う
@@ -75,10 +78,10 @@ float sdRoundBox(float3 p, float3 b, float r)
     return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r;  // 外: 出ている成分の長さ、 中: いちばん近い面まで。 − 丸み
 }
 
-// この部品の形 (部品の空間。 形の真ん中が原点)
+// 氷の形 (部品の空間。 形の真ん中が原点)
 float sdf(float3 p)
 {
-    float d = sdRoundBox(p, float3(ICE_HALF, ICE_HALF, ICE_HALF), ICE_ROUND);  // 氷: 角の丸い立方体
+    float d = sdRoundBox(p, float3(ICE_HALF, ICE_HALF, ICE_HALF), ICE_ROUND);  // 角の丸い立方体
     return d;
 }
 
@@ -117,18 +120,30 @@ bool rayMarch(float3 ro, float3 rd, float tMax, out float t)
     return false;
 }
 
-// 中から出口まで進む: 中では −SDF が 「いちばん近い表面までの距離」 なので、 その分進めば表面を越えない。
+// 中から出口まで進む。 1 歩は −SDF (いちばん近い表面までの距離) だが、 2 mm〜2 cm に収める。
+// 「表面に近づいたら出口」 とはせず、 SDF が正 (外) になるまで進んでから、 2 分探索で出口を詰める。
+//   −SDF だけ進む形だと、 斜めの光線が面とほぼ平行に表面のすぐ近くを進むとき、 歩幅が小さくなって歩数を使い切ったり、
+//   出ていないのに 「出口に着いた」 と判断したりする (斜めから見ると、 中の面が重なって見える)。
 // 戻り値: 出口 (後ろの面) までの距離。 col / thr: 進みながら足す光と、 残る割合 (段階 6 から使う)
 float rayMarchInside(float3 ro, float3 rd, inout float3 col, inout float3 thr)
 {
     float t = 0.0;                                    // 進んだ距離
+    float tIn = 0.0;                                  // 中だと分かっている、 いちばん遠い距離 (2 分探索に使う)
     [loop]
     for (int i = 0; i < 128; ++i) {                   // 歩数の上限
         float3 p = ro + rd * t;                       // 今いる点
         float depth = -sdf(p);                        // 表面からの深さ (中なので −SDF)
-        if (depth < HIT_EPS) break;                   // 出口に着いた
-        float s = clamp(depth, HIT_EPS, 0.02);        // 1 歩: 表面までの深さ。 2 cm まで (中の濃さの変わり方を読み飛ばさない)
+        if (depth < 0.0) break;                       // 外へ出た (出口を越えた)
+        tIn = t;                                      // ここはまだ中
+        float s = clamp(depth, 0.002, 0.02);          // 1 歩: 表面までの深さ。 2 mm〜2 cm (小さすぎると歩数を使い切り、 大きいと中の濃さを読み飛ばす)
         t += s;
+    }
+    // 2 分探索: tIn (中) と t (外) の真ん中が外なら t を、 中なら tIn を縮める。 6 回で幅は 1/64 (2 cm なら 0.3 mm)
+    [loop]
+    for (int j = 0; j < 6; ++j) {
+        float m = 0.5 * (tIn + t);
+        if (sdf(ro + rd * m) > 0.0) t = m;
+        else tIn = m;
     }
     return t;
 }
@@ -177,35 +192,23 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
     float3 col = float3(0.0, 0.0, 0.0);  // 目に届く光 (足していく)
     float3 thr = float3(1.0, 1.0, 1.0);  // まだ届く割合 (掛けて減らしていく。 透過率)
 
-    [loop]
-    for (int entry = 0; entry < 2; ++entry) {  // 同じ形に入るのは 2 回まで (へこんだ所や、 コップの手前の壁 → 奥の壁)
-        float3 n = calcNormal(p);              // 表面の法線
+    // 2. 表面: 映り込みを足し、 残りは屈折して中へ
+    float3 n = calcNormal(p);                                                 // 表面の法線
+    float F = fresnelSchlick(dot(-rd, n));                                    // 映り込む割合 (フレネル)
+    col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;  // 反射の向き r = d − 2(d·n)n の景色
+    thr *= 1.0 - F;                                                           // 残りの割合が中へ入る
+    rd = refract(rd, n, 1.0 / ior);                                           // ★ 段階 4: 屈折。 スネルの法則 (空気 → 中。 屈折率の比 1 / n)
+    p -= n * EPS;                                                             // 少し中へ入れてから進む
 
-        // 2. 表面: 映り込みを足し、 残りは屈折して中へ
-        float F = fresnelSchlick(dot(-rd, n));                                // 映り込む割合 (フレネル)
-        col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;  // 反射の向き r = d − 2(d·n)n の景色
-        thr *= 1.0 - F;                                                       // 残りの割合が中へ入る
-        rd = refract(rd, n, 1.0 / ior);                                       // ★ 段階 4: 屈折。 スネルの法則 (空気 → 中。 屈折率の比 1 / n)
-        p -= n * EPS;                                                         // 少し中へ入れてから進む
+    // 3. 中を出口まで進む → 4. 出口で屈折して外へ
+    p += rd * rayMarchInside(p, rd, col, thr);                                // 出口 (後ろの面) まで進む
+    n = calcNormal(p);                                                        // 出口の法線
+    float3 outDir = refract(rd, -n, ior);                                     // ★ 段階 4: スネルの法則 (中 → 空気。 比 n / 1。 法線は光線と向かい合う −n)
+    if (dot(outDir, outDir) < 1e-6) outDir = rd;                              // 段階 4: 全反射はまだ扱わない (出られない光もまっすぐ出してしまう)
+    thr *= 1.0 - fresnelSchlick(dot(outDir, n));                              // 出口でも一部は映り込んで中へ戻る (段階 4 では捨てる)
+    rd = outDir;                                                              // 曲がって外へ
 
-        bool escaped = false;                                                 // 外へ出られたか
-        // 3. 中を出口まで進む → 4. 出口で屈折して外へ
-        p += rd * rayMarchInside(p, rd, col, thr);                            // 出口 (後ろの面) まで進む
-        n = calcNormal(p);                                                    // 出口の法線
-        float3 outDir = refract(rd, -n, ior);                                 // ★ 段階 4: スネルの法則 (中 → 空気。 比 n / 1。 法線は光線と向かい合う −n)
-        if (dot(outDir, outDir) < 1e-6) outDir = rd;                          // 段階 4: 全反射はまだ扱わない (出られない光もまっすぐ出してしまう)
-        thr *= 1.0 - fresnelSchlick(dot(outDir, n));                          // 出口でも一部は映り込んで中へ戻る (段階 4 では捨てる)
-        rd = outDir;                                                          // 曲がって外へ
-        p += n * EPS;                                                         // 少し外へ出す
-        escaped = true;
-
-        // 5. 外へ出た光が、 同じ形にまた当たるか。 当たらなければ終わり
-        float tAgain;                                                         // また当たるまでの距離
-        if (!escaped || entry == 1 || !rayMarch(p, rd, 2.0, tAgain)) break;   // 出られなかった / 2 回目 / もう当たらない
-        p += rd * tAgain;                                                     // また当たった表面へ
-    }
-
-    // 6. 景色
-    col += thr * envMap.SampleLevel(envSampler, mul(float4(rd, 0.0), world).xyz, 0).rgb;  // 出た向きの空と床に、 残った割合を掛けて足す
+    // 5. 景色: 出た向きの景色に、 残った割合を掛けて足す
+    col += thr * envMap.SampleLevel(envSampler, mul(float4(rd, 0.0), world).xyz, 0).rgb;
     return float4(col, 1.0);                                                  // 色 (光の強さのまま) と α (1 = 上書き)
 }

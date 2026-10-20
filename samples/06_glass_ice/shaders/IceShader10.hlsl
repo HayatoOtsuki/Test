@@ -1,73 +1,10 @@
 // =============================================================================
-// IceShader10.hlsl — コップの氷 (完成形)
+// IceShader10.hlsl — 氷 段階 10: 体積の散乱 (層 × ノイズ)
 //
-// SdfObject (RenderEntity) 1 つが、 このシェーダーで形を 1 つ描く。 サンプルは氷 3 つとコップ 1 つを置く。
-// 部品は形を囲む箱の裏面を描き、 箱が映る画素で光線を追う。
+// 作る順に 1 段ずつ足していくシェーダーの、 途中の段。 完成形は IceShader13.hlsl (参考文献と全部の解説もそこ)。
+// 前の段から足した行には 「★ 段階 N」 と書いてある。 前の段のファイルと見比べると、 足した所が分かる。
 //
-// 【描く流れ】 (ピクセルシェーダー PSMain)
-//   0. 最初に 1 回だけ、 カメラを部品の空間へ (invWorld)。 ここから先は全部、 部品の空間で計算する
-//   1. rayMarch       : 外から表面を探す (球追跡)。 当たらなければ discard。 当たった点の深度を出す
-//   2. 表面           : 映り込み (フレネル) を足し、 残りは屈折 (スネルの法則) して中へ
-//   3. rayMarchInside : 中を出口まで進む。 吸収 (ランベルト・ベール)・白い芯 (内部散乱)・気泡・亀裂
-//   4. 出口           : 屈折して外へ。 出られない角度なら全反射して 3 へ。 後ろの面の映り込み
-//   5. 外へ出た光が同じ形にまた当たるなら 2 へ (コップの手前の壁 → 奥の壁)
-//   6. 景色           : 氷は、 出た向きの景色を環境マップ (envMap) から読む。 コップ (薄い物) は後ろに描いてある物に半透明で重ねる
-//   返す値は float4(色, α)。 色は光の強さのまま (表示用の変換は、 エンジンが最後に 1 回だけする)
-//   エンジンの関数は使わない。 使うのは定数バッファ (ViewProj・LightDirection・LightColor と、 部品の定数) と環境マップ (t0) だけ
-//
-// 【式と仕組みの一覧】 (詳しくは samples/06_glass_ice/README.md)
-//   SDF                : 点から形の表面までの符号付きの距離。 外が正、 表面が 0、 中が負
-//   角の丸い箱         : 箱を丸みの分小さくし、 表面を丸みの分ふくらませる
-//   殻 (onion)         : |φ| − 厚さの半分。 共通部分は max(φ1, φ2)
-//   法線 (中心差分)    : n = ∇φ / |∇φ|。 各軸で少し前と後ろの差
-//   球追跡             : φ だけ進めば表面を越えない (中では −φ)
-//   フレネル (Schlick) : F = F0 + (1 − F0)(1 − cosθ)⁵、 F0 = ((n − 1) / (n + 1))²
-//   反射の向き         : r = d − 2(d·n)n
-//   スネルの法則       : n1 sinθ1 = n2 sinθ2 (refract)
-//   全反射             : sinθ > 1 / n で解が無い。 臨界角 = arcsin(1 / n) (氷 49.8°、 ガラス 41.8°)
-//   ランベルト・ベール : 透過率 T = exp(−σ × 距離)
-//   内部散乱 (簡単版)  : 1 歩で当たる割合 a = 1 − exp(−σs × 歩幅)。 col += thr × a × 届く光、 thr *= 1 − a
-//   ランダム・値ノイズ : sin のハッシュ、 エルミート補間 3f² − 2f³、 三線形補間
-//   光線と球の交点     : t = −b ± √(b² − c)、 b = oc·d、 c = |oc|² − r²
-//   光線と平面の交点   : t = (c − p)·n / (d·n)
-//
-// 【このサンプルで決めた近似と値】 (文献に無い所。 説明するときは、 この区別をそのまま言う)
-//   ・後ろの面の映り込み: 出口で中へ跳ね返る分を、 跳ね返った向きの景色で近似する (本当はもう一度追う)
-//   ・全反射は 4 回まで。 残りは今の向きの景色で近似
-//   ・内部散乱: 一回散乱だけ、 向きの偏り無し、 届く光は決まった白 (CORE_LIGHT)
-//   ・気泡と亀裂: 中を通り抜ける光の曲がりは無視。 亀裂の白い散らばりの割合 (CRACK_WHITE)
-//   ・環境マップは、 コップの真ん中から見た景色 (床の模様は、 その点から見た物。 氷の場所ごとの違いは無視)
-//   ・コップ: 壁で光が曲がらないとみなし、 後ろの絵に重ねる (float4(映り込み, 1 − 透過率) を返してブレンド)
-//   ・形の大きさ・でこぼこ・吸収・芯・気泡・亀裂の値は、 見た目で決めた
-//
-// 【参考文献】 (どれも式と考え方を確かめるために読んだ。 コードは写していない。 利用条件は docs/guide/references.md)
-//   ・SDF の形 (角の丸い箱・円柱・onion・共通部分): Inigo Quilez "distance functions"
-//       https://iquilezles.org/articles/distfunctions  (記事のコード片は MIT ライセンス)
-//   ・SDF の法線 (中心差分): Inigo Quilez "normals for an SDF"  https://iquilezles.org/articles/normalsSDF
-//   ・球追跡: Inigo Quilez "raymarching SDFs"  https://iquilezles.org/articles/raymarchingdf
-//       原典: J. C. Hart, "Sphere Tracing", The Visual Computer 12, 1996  https://doi.org/10.1007/s003710050084
-//   ・光線と球・平面の交点: Inigo Quilez "intersectors"  https://iquilezles.org/articles/intersectors
-//   ・ランダム (sin のハッシュ)・値ノイズ・マスごとに点を置く: The Book of Shaders 第 10・11・12 章 (日本語あり)
-//       https://thebookofshaders.com/10/?lan=jp  https://thebookofshaders.com/11/?lan=jp  https://thebookofshaders.com/12/?lan=jp
-//   ・反射と屈折の向き (reflect / refract)、 環境マップ (キューブマップを向きで読む): LearnOpenGL "Cubemaps"
-//       https://learnopengl.com/Advanced-OpenGL/Cubemaps
-//       HLSL の refract (全反射の角度では (0, 0, 0) を返す):
-//       https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-refract
-//   ・フレネル (Schlick の近似): LearnOpenGL "PBR Theory"  https://learnopengl.com/PBR/Theory
-//       原典: C. Schlick, Computer Graphics Forum 13(3), 1994  https://doi.org/10.1111/1467-8659.1330233
-//   ・スネルの法則・全反射・F0: PBR Book 第 4 版 (全文が無料で公開)
-//       https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission
-//   ・ランベルト・ベールの法則 (透過率)・内部散乱 (放射伝達の式): PBR Book 第 4 版
-//       https://pbr-book.org/4ed/Volume_Scattering/Transmittance
-//       https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes
-//   ・全反射 (密な物 → 疎な物): Wikipedia "Total internal reflection"  https://en.wikipedia.org/wiki/Total_internal_reflection
-//   ・冷凍庫の氷が白く濁る理由: Wikipedia "Ice cube" の Clear and cloudy  https://en.wikipedia.org/wiki/Ice_cube
-//   ・氷の屈折率 1.31: S. G. Warren, R. E. Brandt, J. Geophys. Res. 113, 2008  https://doi.org/10.1029/2007JD009744
-//   ・SV_Depth / discard: Microsoft の HLSL の説明
-//       https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics
-//       https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/discard--sm4---asm-
-//
-// 【段階】 IceShader0.hlsl から順に 1 段ずつ足して、 このファイルになる。 各段のヘッダーに、 足した物と確かめることがある。
+// 【段階】
 //    0. 箱を描く
 //    1. 形を探す (球追跡)
 //    2. 法線と光 (不透明)
@@ -75,26 +12,40 @@
 //    4. 屈折 (歪み)
 //    5. 全反射と後ろの面
 //    6. 吸収と溶けかけの形
-//    7. 白い芯 (内部散乱)
+//    7. 白い芯 (内部散乱の簡単版)
 //    8. 気泡
 //    9. 亀裂
-//   10. コップ (完成)  ← 今回
+//   10. 体積の散乱 (層 × ノイズ)  ← 今回
+//   11. 散乱の影 (太陽への光)
+//   12. 前方散乱
+//   13. 周りの景色 (画面のコピー、 完成)
 //
 // 【前の段から引き継ぐ物】
-//   氷の全部 (でこぼこ・屈折・全反射・後ろの面・吸収・白い芯・気泡・亀裂)。
+//   氷の全部 (でこぼこ・屈折・全反射・後ろの面・吸収・白い芯の簡単版・気泡・亀裂)。 段階 7 の白い芯 (簡単版) は、 ここで置き換わる。
 //
 // 【今回足す物】
-//   ・sdCappedCylinder と sdf の shape == 1: コップの形 (円柱を殻にして、 上を切って口を開ける)
-//   ・ピクセルシェーダーの最後: 薄い物 (thin) は、 後ろに描いてある物に半透明で重ねる
-//   ・C++: コップの部品を描く (氷の後に描く)
+//   ・scatterDensity: 中の濃さ。 SDF の層 (表面からの深さ) で芯の形を決め、 3D ノイズでむらを付ける
+//   ・scatterInside: 入口から出口まで、 一定の歩幅で 32 歩進み、 散乱した光を足す (体積レンダリング)
+//   ・PSMain: 画素ごとのずらし (jitter) を作り、 中を通る区間ごとに scatterInside を呼ぶ
 //
 // 【仕組み】
-//   コップの形: 円柱の SDF の絶対値から厚さの半分を引くと、 壁と底だけの殻になる (onion: |d| − t)。
-//     「その高さより下」 の SDF と共通部分 (max) を取ると、 上のふたが切れて口が開く。
-//   同じ形にまた入るループ (段階 4 から) で、 手前の壁 → 奥の壁 と 2 回通る。
-//   重ね方: 壁が薄いので、 通り抜けた光はほとんど曲がらない。 だから通った先の景色は自分で計算せず、 先に描いた氷と床を使う。
-//     ピクセルシェーダーは float4(映り込みの光, 通らなかった割合) を返す。 ブレンドが 「出した色 + 後ろの色 × (1 − α)」 なので、
-//     結果 = 映り込み + 後ろの色 × 透過率。 シーンは明るさのまま描いているので、 光の足し算として正しく混ざる。
+//   体積の散乱: 光が泡の多い所を進むとき、 1 歩 dt ごとに、 散乱する割合 a = 1 − exp(−σs × dt) (ランベルト・ベールの法則)。
+//     散った光のうち目の方へ来る分を足し (col += thr × a × 届く光)、 外れた分だけ奥からの光を減らす (thr *= 1 − a)。
+//     中では光はまっすぐ進むので、 入口と出口の間を一定の歩幅で歩けばよい (出口は rayMarchInside が見つける)。
+//   濃さの形: SDF なら 「表面からの深さ」 (−SDF) がそのまま分かる。 外側 4 cm は透明、 10 cm より深いと最大 (smoothstep)。
+//     冷凍庫の氷は外側から凍り、 泡が芯に閉じ込められるので、 理屈にも合う。 ノイズを掛けて、 均一な霧の玉に見えないようにする。
+//   一定の歩幅と jitter: 32 歩だと、 全部の画素で同じ深さの所を読むので層の縞が出る。 画素ごとに歩の位置を 0〜1 歩ずらすと、
+//     縞が細かいざらつきに変わって見えなくなる。 jitter は画面の位置の hash。
+//   届く光: この段では、 太陽の光 (LightColor × SUN_SCATTER) と空の光 (SKY_SCATTER) が、 どこにも同じだけ届くとする。
+//
+// 【確かめること】
+//   ・芯が、 むらのある雲のように白く濁る。 縁の 4 cm は透明
+//   ・層の縞が見えない (jitter を 0 にすると縞が出る)
+//   ・C++ の setCoreDensity を上げると牛乳のように、 下げると透明に近づく
+//
+// 【参考】
+//   PBR Book "Volume Scattering Processes" (吸収・散乱・放射伝達の式)  https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes
+//   PBR Book "Transmittance" (ランベルト・ベールの法則)  https://pbr-book.org/4ed/Volume_Scattering/Transmittance
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
@@ -105,12 +56,9 @@ cbuffer ObjectConstants : register(b1)
     float4x4 world;        // 部品の空間 → ワールドの行列 (転置済み。 mul(float4(p, 1), world) と書く)
     float4x4 invWorld;     // ワールド → 部品の空間の行列 (world の逆行列。 ピクセルシェーダーの最初に 1 回だけ使う)
     float3   cameraPos;    // カメラの位置 (ワールド)
-    uint     shape;        // 形の番号: 0 = 氷 (角の丸い立方体)、 1 = コップ (段階 10 から)
+    float    ior;          // 屈折率 n (氷 1.31)。 段階 3 から使う
     float3   absorption;   // 1 m あたりの吸収の強さ σa (赤・緑・青)。 段階 6 から使う
-    float    ior;          // 屈折率 n (氷 1.31、 ガラス 1.5)。 段階 3 から使う
     float    coreDensity;  // 白い芯の気泡の濃さ σs (1/m)。 0 なら芯なし。 段階 7 から使う
-    uint     thin;         // 1 = 薄い物 (コップ): 後ろに描いてある物に半透明で重ねる。 段階 10 から使う
-    float2   objectPad;    // 16 バイトにそろえるための詰め物 (使わない)
 };
 
 // 環境マップ (周りの景色のキューブマップ)。 向きを渡すと、 その向きの景色の色 (光の強さ) が返る。 段階 3 から使う
@@ -128,9 +76,6 @@ static const float BUBBLE_R_MIN = 0.0015;     // 気泡の半径の最小 (m)
 static const float BUBBLE_R_MAX = 0.004;      // 気泡の半径の最大 (m)。 マスの面までの余白 (マスの 30%) より小さくする
 static const float CRACK_R = 0.08;            // 亀裂 (円盤) の半径 (m)。 ふちはノイズでゆらす
 static const float CRACK_WHITE = 0.08;        // 亀裂を通る光のうち、 割れ目の細かいひびで白く散らばる割合
-static const float CUP_R = 0.36;              // コップの半径 (壁の真ん中まで, m)
-static const float CUP_H = 0.40;              // コップの高さの半分 (m)
-static const float CUP_T = 0.006;             // コップの壁の厚さの半分 (m)。 壁と底の厚さは 1.2 cm
 
 // ---- ノイズ ----
 
@@ -159,6 +104,9 @@ float3 hash3(float3 p)
 {
     return float3(hash(p), hash(p + float3(31.7, 11.3, 57.1)), hash(p + float3(71.9, 43.3, 23.7)));
 }
+static const int SCATTER_STEPS = 32;                        // 体積の散乱で、 入口から出口まで進む歩数 (一定の歩幅)
+static const float SUN_SCATTER = 0.3;                       // 散乱する光のうち、 太陽から来る分の強さ (太陽の色 × これ)
+static const float3 SKY_SCATTER = float3(0.30, 0.35, 0.42); // 散乱する光のうち、 空から来る分 (どの向きからも来る弱い光)
 
 // ---- SDF (形): 点 p から形の表面までの符号付きの距離。 外が正、 表面が 0、 中が負 ----
 
@@ -169,22 +117,10 @@ float sdRoundBox(float3 p, float3 b, float r)
     return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r;  // 外: 出ている成分の長さ、 中: いちばん近い面まで。 − 丸み
 }
 
-// 円柱 (半径 r、 高さの半分 h): 中心軸からの距離と縦の位置を、 2 次元の箱として測る
-float sdCappedCylinder(float3 p, float r, float h)
-{
-    float2 d = abs(float2(length(p.xz), p.y)) - float2(r, h);  // 横 (中心軸から) と縦の、 面からのはみ出し
-    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));     // 2 次元の箱の距離関数
-}
-
-// この部品の形 (部品の空間。 形の真ん中が原点)
+// 氷の形 (部品の空間。 形の真ん中が原点)
 float sdf(float3 p)
 {
-    if (shape == 1) {
-        // ★ 段階 10: コップ。 円柱を殻にし (onion: |d| − 厚さの半分)、 上を切って口を開ける (共通部分: max)
-        float shell = abs(sdCappedCylinder(p, CUP_R, CUP_H)) - CUP_T;  // 壁と底だけの、 ふたのある筒
-        return max(shell, p.y - (CUP_H - CUP_T));                      // 「この高さより下」 と共通部分 = ふたを切る
-    }
-    float d = sdRoundBox(p, float3(ICE_HALF, ICE_HALF, ICE_HALF), ICE_ROUND);  // 氷: 角の丸い立方体
+    float d = sdRoundBox(p, float3(ICE_HALF, ICE_HALF, ICE_HALF), ICE_ROUND);  // 角の丸い立方体
     d += ICE_BUMP * noise(p * BUMP_FREQ);  // ★ 段階 6: 溶けかけのゆるいでこぼこ (細かく・大きくすると霜に見える)
     return d;
 }
@@ -248,6 +184,38 @@ bool insideCrack(float3 q)
     return length(q) < edge;
 }
 
+// ---- 体積の散乱 (段階 10〜12) ----
+
+// 中の濃さ σs (1/m): SDF の層 (表面からの深さ) で芯の形を決め、 3D ノイズでむらを付ける
+float scatterDensity(float3 p)
+{
+    float depth = -sdf(p);                         // 表面からの深さ (SDF の層。 中なので −SDF)
+    float core = smoothstep(0.04, 0.10, depth);    // 外側 4 cm は透明、 10 cm より深いと最大
+    float n = noise(p * 12.0) * 0.5 + 0.5;         // 3D ノイズ (0〜1)。 12 で 8 cm ごとのむら
+    return coreDensity * core * (0.4 + 0.6 * n);   // むらのある芯
+}
+
+// 入口 p0 から出口 p1 まで、 一定の歩幅で SCATTER_STEPS 歩進み、 目の方へ散った光を返す (体積レンダリング)。
+// thr (まだ届く割合) も、 散乱で外れた分だけ減らす (吸収は rayMarchInside が掛けている)。 jitter: 画素ごとのずらし (0〜1)
+float3 scatterInside(float3 p0, float3 p1, float jitter, inout float3 thr)
+{
+    float len = length(p1 - p0);                                                  // 区間の長さ
+    float3 dir = (p1 - p0) / max(len, 1e-5);                                      // 進む向き
+    float dt = len / float(SCATTER_STEPS);                                        // 1 歩の長さ (一定)
+    float3 col = float3(0.0, 0.0, 0.0);                                           // 目の方へ散った光 (足していく)
+    [loop]
+    for (int i = 0; i < SCATTER_STEPS; ++i) {
+        float3 p = p0 + dir * ((float(i) + jitter) * dt);                         // 歩の位置 (jitter で画素ごとにずらし、 層の縞を消す)
+        float sigma = scatterDensity(p);                                          // この点の濃さ σs
+        if (sigma <= 0.0) continue;
+        float a = 1.0 - exp(-sigma * dt);                                         // この 1 歩で散乱する割合 (ランベルト・ベールの法則)
+        float3 sun = LightColor * SUN_SCATTER;                                    // この点に届く太陽の光
+        col += thr * a * (sun + SKY_SCATTER);                                     // 散った光のうち、 目の方へ来る分 (一回散乱)
+        thr *= 1.0 - a;                                                           // 散乱で外れた分だけ、 奥からの光は減る
+    }
+    return col;
+}
+
 // ---- レイマーチング ----
 
 // 外から表面を探す (球追跡): SDF の値 φ は 「いちばん近い表面までの距離」 なので、 φ だけ進めば表面を越えない。
@@ -265,19 +233,24 @@ bool rayMarch(float3 ro, float3 rd, float tMax, out float t)
     return false;
 }
 
-// 中から出口まで進む: 中では −SDF が 「いちばん近い表面までの距離」 なので、 その分進めば表面を越えない。
+// 中から出口まで進む。 1 歩は −SDF (いちばん近い表面までの距離) だが、 2 mm〜2 cm に収める。
+// 「表面に近づいたら出口」 とはせず、 SDF が正 (外) になるまで進んでから、 2 分探索で出口を詰める。
+//   −SDF だけ進む形だと、 斜めの光線が面とほぼ平行に表面のすぐ近くを進むとき、 歩幅が小さくなって歩数を使い切ったり、
+//   出ていないのに 「出口に着いた」 と判断したりする (斜めから見ると、 中の面が重なって見える)。
 // 戻り値: 出口 (後ろの面) までの距離。 col / thr: 進みながら足す光と、 残る割合 (段階 6 から使う)
 float rayMarchInside(float3 ro, float3 rd, inout float3 col, inout float3 thr)
 {
     float3 crackC;                                    // ★ 段階 9: 亀裂の円盤の中心
     float3 crackN = crackPlane(crackC);               // ★ 段階 9: 亀裂の面の法線
     float t = 0.0;                                    // 進んだ距離
+    float tIn = 0.0;                                  // 中だと分かっている、 いちばん遠い距離 (2 分探索に使う)
     [loop]
     for (int i = 0; i < 128; ++i) {                   // 歩数の上限
         float3 p = ro + rd * t;                       // 今いる点
         float depth = -sdf(p);                        // 表面からの深さ (中なので −SDF)
-        if (depth < HIT_EPS) break;                   // 出口に着いた
-        float s = clamp(depth, HIT_EPS, 0.02);        // 1 歩: 表面までの深さ。 2 cm まで (中の濃さの変わり方を読み飛ばさない)
+        if (depth < 0.0) break;                       // 外へ出た (出口を越えた)
+        tIn = t;                                      // ここはまだ中
+        float s = clamp(depth, 0.002, 0.02);          // 1 歩: 表面までの深さ。 2 mm〜2 cm (小さすぎると歩数を使い切り、 大きいと中の濃さを読み飛ばす)
 
         // ★ 段階 8: 気泡。 1 歩は、 マスの面までと、 気泡の表面までに抑える
         float3 bubbleC;                               // 気泡の中心
@@ -296,9 +269,9 @@ float rayMarchInside(float3 ro, float3 rd, inout float3 col, inout float3 thr)
             float b = dot(oc, rd);
             float c = dot(oc, oc) - bubbleR * bubbleR;
             t += -b + sqrt(max(b * b - c, 0.0)) + 0.0005;                          // 気泡の出口 + 0.5 mm
-            continue;
+            continue;                                                              // (気泡は氷の中にしか置かないので、 抜けた先も氷の中)
         }
-        s = min(s, min(max(db, HIT_EPS), cellStep));  // 気泡もマスの面も越えない歩幅
+        s = min(s, min(max(db, 0.0005), cellStep));   // 気泡もマスの面も越えない歩幅
 
         // ★ 段階 9: 亀裂。 この 1 歩の間に亀裂の面を通るなら、 その点で映り込みを足す
         float dn = dot(rd, crackN);                                            // 光線の向きと、 面の法線の cos
@@ -311,14 +284,15 @@ float rayMarchInside(float3 ro, float3 rd, inout float3 col, inout float3 thr)
             col += thr * (1.0 - Fc) * CRACK_WHITE * CORE_LIGHT;               // 割れ目の細かいひびで白く散らばる分
             thr *= (1.0 - Fc) * (1.0 - CRACK_WHITE);                           // 残りは割れ目を通り抜ける (薄いので曲がりは無視)
         }
-
-        // ★ 段階 7: 白い芯 (内部散乱)。 表面から 5 cm より深い所に、 細かい気泡が集まる
-        float core = coreDensity * smoothstep(0.05, 0.11, depth);  // この点の芯の濃さ σs (1/m)
-        float a = 1.0 - exp(-core * s);                            // この 1 歩で気泡に当たる割合 (ランベルト・ベールの法則)
-        col += thr * a * CORE_LIGHT;                               // 当たった光は白く散らばり、 目に届く (一回散乱の簡単版)
-        thr *= 1.0 - a;                                            // 当たった分だけ、 奥からの光は減る
         thr *= exp(-absorption * s);                  // ★ 段階 6: 吸収。 透過率 T = exp(−σa × 距離) (ランベルト・ベールの法則)
         t += s;
+    }
+    // 2 分探索: tIn (中) と t (外) の真ん中が外なら t を、 中なら tIn を縮める。 6 回で幅は 1/64 (2 cm なら 0.3 mm)
+    [loop]
+    for (int j = 0; j < 6; ++j) {
+        float m = 0.5 * (tIn + t);
+        if (sdf(ro + rd * m) > 0.0) t = m;
+        else tIn = m;
     }
     return t;
 }
@@ -367,53 +341,37 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
     float3 col = float3(0.0, 0.0, 0.0);  // 目に届く光 (足していく)
     float3 thr = float3(1.0, 1.0, 1.0);  // まだ届く割合 (掛けて減らしていく。 透過率)
 
+    // 2. 表面: 映り込みを足し、 残りは屈折して中へ
+    float3 n = calcNormal(p);                                                 // 表面の法線
+    float F = fresnelSchlick(dot(-rd, n));                                    // 映り込む割合 (フレネル)
+    col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;  // 反射の向き r = d − 2(d·n)n の景色
+    thr *= 1.0 - F;                                                           // 残りの割合が中へ入る
+    rd = refract(rd, n, 1.0 / ior);                                           // ★ 段階 4: 屈折。 スネルの法則 (空気 → 中。 屈折率の比 1 / n)
+    p -= n * EPS;                                                             // 少し中へ入れてから進む
+    float jitter = hash(float3(v.Pos.xy, 0.0));                               // ★ 段階 10: 画素ごとのずらし (0〜1)。 体積の散乱の層の縞を消す
+
+    // 3〜4. 中を出口まで進む。 出られない角度なら全反射して、 また進む
     [loop]
-    for (int entry = 0; entry < 2; ++entry) {  // 同じ形に入るのは 2 回まで (へこんだ所や、 コップの手前の壁 → 奥の壁)
-        float3 n = calcNormal(p);              // 表面の法線
-
-        // 2. 表面: 映り込みを足し、 残りは屈折して中へ
-        float F = fresnelSchlick(dot(-rd, n));                                // 映り込む割合 (フレネル)
-        col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;  // 反射の向き r = d − 2(d·n)n の景色
-        thr *= 1.0 - F;                                                       // 残りの割合が中へ入る
-        rd = refract(rd, n, 1.0 / ior);                                       // ★ 段階 4: 屈折。 スネルの法則 (空気 → 中。 屈折率の比 1 / n)
-        p -= n * EPS;                                                         // 少し中へ入れてから進む
-
-        bool escaped = false;                                                 // 外へ出られたか
-        // 3〜4. 中を出口まで進む。 出られない角度なら全反射して、 また進む
-        [loop]
-        for (int k = 0; k < 4; ++k) {                                         // 全反射は 4 回まで
-            p += rd * rayMarchInside(p, rd, col, thr);                        // 3. 出口 (後ろの面) まで進む
-            n = calcNormal(p);                                                // 出口の法線
-            float3 outDir = refract(rd, -n, ior);                             // スネルの法則 (中 → 空気。 比 n / 1。 法線は光線と向かい合う −n)
-            if (dot(outDir, outDir) < 1e-6) {                                 // ★ 段階 5: 解が無い (refract が (0, 0, 0)) = 全反射 (sinθ > 1 / n)
-                rd = reflect(rd, n);                                          // 中で跳ね返る
-                p -= n * EPS;                                                 // 少し中へ戻す
-                continue;                                                     // また出口を探す
-            }
-            F = fresnelSchlick(dot(outDir, n));                               // 出口で映り込む割合
-            // ★ 段階 5: 後ろの面の映り込み。 中へ跳ね返る分 F を、 跳ね返った向きの景色で近似して足す
-            col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;
-            thr *= 1.0 - F;                                                   // 残りは外へ
-            rd = outDir;                                                      // 曲がって外へ
-            p += n * EPS;                                                     // 少し外へ出す
-            escaped = true;
-            break;
+    for (int k = 0; k < 8; ++k) {                                             // 全反射は 8 回まで (角の近くでは何度も跳ね返る)
+        float3 pIn = p;                                                       // ★ 段階 10: この区間の入口
+        p += rd * rayMarchInside(p, rd, col, thr);                            // 3. 出口 (後ろの面) まで進む
+        col += scatterInside(pIn, p, jitter, thr);                            // ★ 段階 10: 入口〜出口の体積の散乱 (中では光はまっすぐ進む)
+        n = calcNormal(p);                                                    // 出口の法線
+        float3 outDir = refract(rd, -n, ior);                                 // スネルの法則 (中 → 空気。 比 n / 1。 法線は光線と向かい合う −n)
+        if (dot(outDir, outDir) < 1e-6) {                                     // ★ 段階 5: 解が無い (refract が (0, 0, 0)) = 全反射 (sinθ > 1 / n)
+            rd = reflect(rd, n);                                              // 中で跳ね返る
+            p -= n * EPS;                                                     // 少し中へ戻す
+            continue;                                                         // また出口を探す
         }
-
-        // 5. 外へ出た光が、 同じ形にまた当たるか。 当たらなければ終わり
-        float tAgain;                                                         // また当たるまでの距離
-        if (!escaped || entry == 1 || !rayMarch(p, rd, 2.0, tAgain)) break;   // 出られなかった / 2 回目 / もう当たらない
-        p += rd * tAgain;                                                     // また当たった表面へ
+        F = fresnelSchlick(dot(outDir, n));                                   // 出口で映り込む割合
+        // ★ 段階 5: 後ろの面の映り込み。 中へ跳ね返る分 F を、 跳ね返った向きの景色で近似して足す
+        col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;
+        thr *= 1.0 - F;                                                       // 残りは外へ
+        rd = outDir;                                                          // 曲がって外へ
+        break;
     }
 
-    // 6. 景色
-    if (thin != 0) {
-        // ★ 段階 10: 薄い物 (コップ)。 壁で光はほとんど曲がらないので、 通った光は後ろに描いてある物 (氷・床) を使う。
-        // 色 = 映り込みの光 (col)、 α = 通らなかった割合。 ブレンドが 「出した色 + 後ろの色 × (1 − α)」 なので、
-        // 結果 = 映り込み + 後ろの色 × 透過率 になる (明るさのまま混ぜるので、 光の足し算として正しい)
-        float alpha = 1.0 - (thr.r + thr.g + thr.b) / 3.0;  // 通らなかった割合 (透過率の平均を 1 から引く)
-        return float4(col, alpha);
-    }
-    col += thr * envMap.SampleLevel(envSampler, mul(float4(rd, 0.0), world).xyz, 0).rgb;  // 出た向きの空と床に、 残った割合を掛けて足す
+    // 5. 景色: 出た向きの景色に、 残った割合を掛けて足す
+    col += thr * envMap.SampleLevel(envSampler, mul(float4(rd, 0.0), world).xyz, 0).rgb;
     return float4(col, 1.0);                                                  // 色 (光の強さのまま) と α (1 = 上書き)
 }

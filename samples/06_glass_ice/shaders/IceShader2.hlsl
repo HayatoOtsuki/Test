@@ -1,7 +1,7 @@
 // =============================================================================
-// IceShader2.hlsl — コップの氷 段階 2: 法線と光 (不透明)
+// IceShader2.hlsl — 氷 段階 2: 法線と光 (不透明)
 //
-// 作る順に 1 段ずつ足していくシェーダーの、 途中の段。 完成形は IceShader10.hlsl (参考文献と全部の解説もそこ)。
+// 作る順に 1 段ずつ足していくシェーダーの、 途中の段。 完成形は IceShader13.hlsl (参考文献と全部の解説もそこ)。
 // 前の段から足した行には 「★ 段階 N」 と書いてある。 前の段のファイルと見比べると、 足した所が分かる。
 //
 // 【段階】
@@ -12,10 +12,13 @@
 //    4. 屈折 (歪み)
 //    5. 全反射と後ろの面
 //    6. 吸収と溶けかけの形
-//    7. 白い芯 (内部散乱)
+//    7. 白い芯 (内部散乱の簡単版)
 //    8. 気泡
 //    9. 亀裂
-//   10. コップ (完成)
+//   10. 体積の散乱 (層 × ノイズ)
+//   11. 散乱の影 (太陽への光)
+//   12. 前方散乱
+//   13. 周りの景色 (画面のコピー、 完成)
 //
 // 【前の段から引き継ぐ物】
 //   形 (sdf)、 球追跡 (rayMarch)、 光線の作り方、 discard と深度。
@@ -48,12 +51,9 @@ cbuffer ObjectConstants : register(b1)
     float4x4 world;        // 部品の空間 → ワールドの行列 (転置済み。 mul(float4(p, 1), world) と書く)
     float4x4 invWorld;     // ワールド → 部品の空間の行列 (world の逆行列。 ピクセルシェーダーの最初に 1 回だけ使う)
     float3   cameraPos;    // カメラの位置 (ワールド)
-    uint     shape;        // 形の番号: 0 = 氷 (角の丸い立方体)、 1 = コップ (段階 10 から)
+    float    ior;          // 屈折率 n (氷 1.31)。 段階 3 から使う
     float3   absorption;   // 1 m あたりの吸収の強さ σa (赤・緑・青)。 段階 6 から使う
-    float    ior;          // 屈折率 n (氷 1.31、 ガラス 1.5)。 段階 3 から使う
     float    coreDensity;  // 白い芯の気泡の濃さ σs (1/m)。 0 なら芯なし。 段階 7 から使う
-    uint     thin;         // 1 = 薄い物 (コップ): 後ろに描いてある物に半透明で重ねる。 段階 10 から使う
-    float2   objectPad;    // 16 バイトにそろえるための詰め物 (使わない)
 };
 
 static const float ICE_HALF = 0.13;           // 氷の半分の大きさ (m)。 1 辺 26 cm (場面は本物の約 8 倍)
@@ -69,10 +69,10 @@ float sdRoundBox(float3 p, float3 b, float r)
     return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r;  // 外: 出ている成分の長さ、 中: いちばん近い面まで。 − 丸み
 }
 
-// この部品の形 (部品の空間。 形の真ん中が原点)
+// 氷の形 (部品の空間。 形の真ん中が原点)
 float sdf(float3 p)
 {
-    float d = sdRoundBox(p, float3(ICE_HALF, ICE_HALF, ICE_HALF), ICE_ROUND);  // 氷: 角の丸い立方体
+    float d = sdRoundBox(p, float3(ICE_HALF, ICE_HALF, ICE_HALF), ICE_ROUND);  // 角の丸い立方体
     return d;
 }
 
