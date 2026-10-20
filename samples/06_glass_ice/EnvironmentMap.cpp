@@ -16,9 +16,18 @@ void EnvironmentMap::initialize(ID3D12Device* device)
     // SRV は、 シェーダーから見える (SHADER_VISIBLE) ヒープに置かないと、 描画中に読めない
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    desc.NumDescriptors = 1;
+    desc.NumDescriptors = 2;  // t0: 環境マップ、 t1: 画面のコピー
     desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(mDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&mHeap)), "CreateDescriptorHeap(environment SRV)");
+}
+
+void EnvironmentMap::setSceneCopy(ID3D12Resource* sceneCopy)
+{
+    if (!sceneCopy) return;
+    // ヒープの 2 番目の場所 (t1)。 記述子の大きさはデバイスによって違うので、 聞いてから進める
+    D3D12_CPU_DESCRIPTOR_HANDLE slot = mHeap->GetCPUDescriptorHandleForHeapStart();
+    slot.ptr += mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    mDevice->CreateShaderResourceView(sceneCopy, nullptr, slot);  // 記述に nullptr: リソースの形式どおりの 2D の SRV
 }
 
 void EnvironmentMap::update(ID3D12GraphicsCommandList* commandList, const Float3& lightDirection, const Float3& lightColor)

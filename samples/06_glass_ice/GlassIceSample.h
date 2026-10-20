@@ -1,10 +1,10 @@
 #pragma once
 // =============================================================================
-// GlassIceSample.h — サンプル 06: コップの氷
+// GlassIceSample.h — サンプル 06: 氷 (コップは一旦外してある)
 //
-// 氷 3 つとコップ 1 つを、 それぞれ SdfObject (部品 1 つ = 形 1 つ) として置く。 このクラス自身は何も描かない。
-// 描く順: (このクラスが環境マップを更新) → 氷 → コップ (コップは半透明で、 後ろに描いた氷に重ねるので最後)
-// シェーダーは段階ごとのファイル IceShader0.hlsl 〜 IceShader10.hlsl。 0〜9 と ← → で切り替える (コップは段階 10 だけ)
+// 氷 3 つを、 それぞれ SdfObject (部品 1 つ = 氷 1 つ) として置く。 このクラス自身は何も描かない。
+// 描く順: (このクラスが環境マップを更新) → 氷 3 つ
+// シェーダーは段階ごとのファイル IceShader0.hlsl 〜 IceShader13.hlsl。 0〜9 と ← → で切り替える
 // =============================================================================
 
 #include "EnvironmentMap.h"
@@ -32,9 +32,8 @@ private:
 
     std::wstring mShaderDir;
     EnvironmentMap mEnvironment;  // 周りの景色のキューブマップ (全部の部品が t0 で読む)
-    int mStage = 10;  // 完成形から始める
+    int mStage = 13;  // 完成形から始める
     SdfObject mIce0;
     SdfObject mIce1;
     SdfObject mIce2;
-    SdfObject mCup;
 };

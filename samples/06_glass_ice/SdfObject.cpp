@@ -11,31 +11,24 @@
 
 namespace {
 
-// シェーダーの cbuffer ObjectConstants と同じ並び (32 bit × 44 個。 全部の段階で同じ)
+// シェーダーの cbuffer ObjectConstants と同じ並び (32 bit × 40 個。 全部の段階で同じ)
 struct ObjectConstants {
     Float4x4 world;      // 部品の空間 → ワールド (転置して渡す)
     Float4x4 invWorld;   // ワールド → 部品の空間 (転置して渡す)
     Float3 cameraPos;
-    uint32_t shape;
-    Float3 absorption;
     float ior;
+    Float3 absorption;
     float coreDensity;
-    uint32_t thin;
-    float pad[2];
 };
-static_assert(sizeof(ObjectConstants) == 44 * 4, "ObjectConstants must be 44 32-bit values");
+static_assert(sizeof(ObjectConstants) == 40 * 4, "ObjectConstants must be 40 32-bit values");
 
 struct BoxVertex {
     Float3 position;
     Float2 uv;
 };
 
-// 形を囲む箱の半分の大きさ。 シェーダーの形より少し大きくする (ICE_HALF + でこぼこ、 CUP_R / CUP_H + 壁の厚さ)
-Float3 boundsHalf(SdfObject::Shape shape)
-{
-    if (shape == SdfObject::Shape::IceCube) return { 0.15f, 0.15f, 0.15f };
-    return { 0.38f, 0.42f, 0.38f };
-}
+// 氷を囲む箱の半分の大きさ。 シェーダーの氷 (ICE_HALF 0.13 + でこぼこ 0.005) より少し大きくする
+const Float3 kBoundsHalf = { 0.15f, 0.15f, 0.15f };
 
 // 箱の 6 面。 どの面も外から見て反時計回り (u × v = 法線 になる u, v で四角を作る)
 void makeBox(const Float3& half, std::vector<BoxVertex>& vertices, std::vector<uint16_t>& indices)
@@ -92,8 +85,7 @@ Float4x4 translation(const Float3& t)
 
 } // namespace
 
-SdfObject::SdfObject(std::wstring shaderFile, Shape shape)
-    : mShaderFile(std::move(shaderFile)), mShape(shape)
+SdfObject::SdfObject(std::wstring shaderFile) : mShaderFile(std::move(shaderFile))
 {
 }
 
@@ -122,11 +114,11 @@ void SdfObject::initializeImplement(const RenderSetup& setup)
     mSetup = setup;
 
     // ルート引数: 0 = b0 エンジンのシーンの定数 (ViewProj・太陽)、 1 = b1 この部品の定数、
-    //            2 = t0 環境マップ (キューブマップ) + 静的サンプラー s0 (線形補間)
+    //            2 = t0 環境マップ (キューブマップ)・t1 画面のコピー (周りの景色) + 静的サンプラー s0 (線形補間)
     D3D12_DESCRIPTOR_RANGE range = {};
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    range.NumDescriptors = 1;
-    range.BaseShaderRegister = 0;  // t0
+    range.NumDescriptors = 2;
+    range.BaseShaderRegister = 0;  // t0 から 2 つ
     D3D12_ROOT_PARAMETER params[3] = {};
     params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     params[0].Descriptor.ShaderRegister = 0;
@@ -154,7 +146,7 @@ void SdfObject::initializeImplement(const RenderSetup& setup)
     // 形を囲む箱
     std::vector<BoxVertex> vertices;
     std::vector<uint16_t> indices;
-    makeBox(boundsHalf(mShape), vertices, indices);
+    makeBox(kBoundsHalf, vertices, indices);
     const UINT vertexBytes = static_cast<UINT>(vertices.size() * sizeof(BoxVertex));
     const UINT indexBytes = static_cast<UINT>(indices.size() * sizeof(uint16_t));
     mVertexBuffer = gpu::createUploadBuffer(mDevice, vertices.data(), vertexBytes);
@@ -175,8 +167,6 @@ bool SdfObject::reloadImplement(std::string& error)
     options.inputCount = 2;
     // 箱の裏面を描く: カメラが箱の中に入っても、 箱が消えない。 深度はシェーダーが当たった点の物を出す
     options.cull = D3D12_CULL_MODE_FRONT;
-    // 半透明で重ねる (氷は α = 1 で上書き、 コップは映り込み + 後ろの色 × 透過率)
-    options.blend = true;
     return gpu::createPipeline(mDevice, mRootSignature.Get(), mSetup, mShaderFile, options, mPipeline, error);
 }
 
@@ -188,18 +178,15 @@ void SdfObject::drawImplement(const DrawContext& context)
         std::string error;
         if (!reloadImplement(error)) OutputDebugStringA(("Sample shader error:\n" + error).c_str());
     }
-    if (!mVisible) return;
 
     const Float4x4 world = worldMatrix();
     ObjectConstants constants = {};
     constants.world = transpose(world);  // HLSL は列優先で読むので転置して渡す (ViewProj と同じ)
     constants.invWorld = transpose(inverse(world));
     constants.cameraPos = context.scene.cameraPos;
-    constants.shape = static_cast<uint32_t>(mShape);
     constants.absorption = mAbsorption;
     constants.ior = mIor;
     constants.coreDensity = mCoreDensity;
-    constants.thin = mShape == Shape::Cup ? 1u : 0u;
 
     ID3D12GraphicsCommandList* commandList = context.commandList;
     commandList->SetGraphicsRootSignature(mRootSignature.Get());
