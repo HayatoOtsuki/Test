@@ -3,17 +3,20 @@
 // Renderer.h — 1 フレームの描画
 //
 // renderFrame の中身:
-//   1. beginFrame: 記録を始め、 バックバッファと深度をクリアして背景 (空と床) を描く
-//   2. 登録された物 (RenderEntity) の drawImplement を順に呼ぶ
-//   3. endFrame  : 記録を閉じて GPU へ送り、 表示して、 GPU が終えるのを待つ
+//   1. beginFrame: 記録を始め、 シーンの描画先 (HDR、 明るさのまま) と深度を用意して背景 (空と床) を描く
+//   2. 登録された物 (RenderEntity) の drawImplement を順に呼ぶ (シーンの描画先へ、 明るさのまま描く)
+//   3. endFrame  : シーンを 1 回だけ表示用の色に直してバックバッファへ写し (DisplayPass)、
+//                  記録を閉じて GPU へ送り、 表示して、 GPU が終えるのを待つ
 // =============================================================================
 
 #include "BackgroundPass.h"
 #include "DirectionalLight.h"
 #include "DepthBuffer.h"
+#include "DisplayPass.h"
 #include "DrawContext.h"
 #include "GraphicsDevice.h"
 #include "RenderEntity.h"
+#include "SceneColorBuffer.h"
 #include "SwapChain.h"
 
 #include <d3d12.h>
@@ -59,7 +62,9 @@ private:
     GraphicsDevice mDevice;
     SwapChain mSwapChain;
     DepthBuffer mDepthBuffer;
+    SceneColorBuffer mSceneColor;  // シーンを明るさのまま描く描画先
     BackgroundPass mBackground;
+    DisplayPass mDisplay;          // 最後に 1 回だけ表示用の色に直す
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mAllocator;      // コマンドを書き込むメモリ
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;  // コマンドを記録する物
     std::vector<RenderEntity*> mEntities;                           // 登録された描く物 (持ち主は登録した側)

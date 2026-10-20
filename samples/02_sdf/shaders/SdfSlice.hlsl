@@ -35,7 +35,7 @@ float3 DistanceColor(float d)
     return lerp(col, float3(0.05, 0.05, 0.08), surface);
 }
 
-// 画素の色 (表示用)。 板に当たらなければ背景 (空と床)
+// 画素の色 (光の強さのまま)。 板に当たらなければ背景 (空と床)
 float3 ShadeSlice(float2 ndc)
 {
     float3 ro, rd;
@@ -50,13 +50,13 @@ float3 ShadeSlice(float2 ndc)
     // 板の範囲: 縦なら x と y、 横なら x と z
     float2 onPlane = Horizontal != 0 ? float2(p.x, p.z) : float2(p.x, p.y - SHAPE_CENTER.y);
     bool inside = t > 0.0 && abs(onPlane.x) < PLANE_HALF && abs(onPlane.y) < PLANE_HALF;
-    if (!inside) return ToDisplay(Environment(ro, rd));
+    if (!inside) return Environment(ro, rd);
 
     float3 col = DistanceColor(SceneSdf(p, int(Shape)));
     // 板の縁を細い線で
     float edge = max(abs(onPlane.x), abs(onPlane.y));
     col = lerp(col, float3(0.2, 0.2, 0.25), smoothstep(PLANE_HALF - 0.01, PLANE_HALF, edge));
-    return col;
+    return FromDisplay(col);  // 距離の色は表示用の色で決めてあるので、 最後の変換を通っても同じ色になるよう戻して出す
 }
 
 float4 PSMain(VSOutput input) : SV_Target

@@ -2,12 +2,12 @@
 // IceCommon.hlsli — 氷のシェーダーが共通で使う物
 //
 //   ・カメラとライト: エンジンのシーンの定数 (b0、 SceneConstants.hlsli)。 Environment.hlsli が #include している
-//   ・環境 (空・床・表示用の変換): エンジンの Environment.hlsli
+//   ・環境 (空・床): エンジンの Environment.hlsli
 //   ・氷ごとの値 (b1): IceImplement.cpp の IceObjectConstants と同じ並び
 //   ・PBR (金属・粗さ) の面の色 ShadeStandard: プリミティブ (IceMesh.hlsl) と SDF の形 (IceSdf.hlsl) が使う
 //
 // 自分のエンジンへ移すときは、 Environment.hlsli の #include を、 エンジンのシーンの定数と空や背景を読む物に置き換える
-// (氷のシェーダーが使うのは ViewProj / CameraPos / SunDirection / SunColor / Environment / ToDisplay)。
+// (氷のシェーダーが使うのは ViewProj / CameraPos / SunDirection / SunColor / Environment)。
 // =============================================================================
 
 #ifndef ICE_COMMON_HLSLI
@@ -72,7 +72,7 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
     return F0 + (1.0 - F0) * pow(1.0 - saturate(cosTheta), 5.0);
 }
 
-// 面の色 (表示用)
+// 面の色 (光の強さのまま)
 float3 ShadeStandard(float3 worldPos, float3 normal)
 {
     float3 N = normalize(normal);                 // 補間で長さが 1 からずれるので直す
@@ -109,7 +109,7 @@ float3 ShadeStandard(float3 worldPos, float3 normal)
     float3 envF = FresnelSchlick(NdotV, F0);
     float3 ambientSpecular = Environment(worldPos, R) * envF * (1.0 - Roughness) * (1.0 - Roughness);
 
-    return ToDisplay(direct + ambientDiffuse + ambientSpecular);
+    return direct + ambientDiffuse + ambientSpecular;  // 光の強さのまま (表示用の変換は最後に 1 回だけ)
 }
 
 #endif

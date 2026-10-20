@@ -16,6 +16,8 @@ set(ENGINE_SOURCES
     src/engine/DepthBuffer.cpp    src/engine/DepthBuffer.h
     src/engine/Renderer.cpp       src/engine/Renderer.h
     src/engine/BackgroundPass.cpp src/engine/BackgroundPass.h
+    src/engine/SceneColorBuffer.cpp src/engine/SceneColorBuffer.h
+    src/engine/DisplayPass.cpp    src/engine/DisplayPass.h
     src/engine/ShaderCompiler.cpp src/engine/ShaderCompiler.h
     src/engine/DrawContext.h
     src/engine/DirectionalLight.h

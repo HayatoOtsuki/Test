@@ -39,15 +39,15 @@ VSOutput VSMain(VSInput input)
     return output;
 }
 
-// 面の色 (表示用)
+// 面の色 (光の強さのまま。 表示用の変換はエンジンが最後に 1 回だけ)
 float3 ShadePrimitive(float3 worldPos, float3 normal, float2 uv)
 {
     float3 n = normalize(normal);  // 混ぜた法線は長さが 1 からずれるので直す
 
     // 法線を色で: x, y, z (−1〜1) を r, g, b (0〜1) に。 上を向く面は緑、 +x は赤、 +z は青っぽい
-    if (ColorMode == 1) return n * 0.5 + 0.5;
+    if (ColorMode == 1) return FromDisplay(n * 0.5 + 0.5);  // デバッグの色は、 最後の変換を通っても同じ色に見えるよう戻して出す
     // UV を色で: u を赤、 v を緑。 模様の貼り方 (継ぎ目・向き) が分かる
-    if (ColorMode == 2) return float3(frac(uv), 0.0);
+    if (ColorMode == 2) return FromDisplay(float3(frac(uv), 0.0));
 
     // 光: ランバート (面が太陽を向くほど明るい) + 空の光 + ブリン・フォンのハイライト
     float3 L = SunDirection();
@@ -55,7 +55,7 @@ float3 ShadePrimitive(float3 worldPos, float3 normal, float2 uv)
     float3 H = normalize(L + V);
     float3 diffuse = BaseColor * (SunColor() * saturate(dot(n, L)) + float3(0.22, 0.30, 0.42) * (0.6 + 0.4 * n.y));
     float3 highlight = SunColor() * 0.25 * pow(saturate(dot(n, H)), 64.0);
-    return ToDisplay(diffuse + highlight);
+    return diffuse + highlight;
 }
 
 float4 PSMain(VSOutput input) : SV_Target

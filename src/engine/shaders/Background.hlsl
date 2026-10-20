@@ -35,14 +35,14 @@ VSOutput VSMain(uint id : SV_VertexID)
     return output;
 }
 
-// 正規化デバイス座標 ndc の画素に塗る色 (表示用)
+// 正規化デバイス座標 ndc の画素に塗る色 (光の強さのまま。 表示用の色には最後に Display.hlsl が直す)
 float3 BackgroundColor(float2 ndc)
 {
     // 画素を奥の面 (クリップ空間の z = 1) まで延ばした点を、 ワールドへ戻す。
     // w で割ると実際の位置になる (透視投影で掛かった w を外す)。 カメラからその点への向きが光線
     float4 farPoint = mul(float4(ndc, 1.0, 1.0), InvViewProj);
     float3 rd = normalize(farPoint.xyz / farPoint.w - CameraPos);
-    return ToDisplay(Environment(CameraPos, rd));
+    return Environment(CameraPos, rd);
 }
 
 float4 PSMain(VSOutput input) : SV_Target

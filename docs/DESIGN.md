@@ -41,6 +41,8 @@ Test/
 │   │   ├── DepthBuffer.h / .cpp   … 深度バッファ
 │   │   ├── Renderer.h / .cpp      … フレームの始まりと終わり、 背景
 │   │   ├── BackgroundPass.h / .cpp… 空と床を全画面に描く
+│   │   ├── SceneColorBuffer.h / .cpp … シーンを光の強さのまま描く描画先 (HDR)
+│   │   ├── DisplayPass.h / .cpp   … 最後に 1 回だけ表示用の色に直す (ToDisplay)
 │   │   ├── ShaderCompiler.h / .cpp… HLSL のファイルをコンパイルする
 │   │   ├── DrawContext.h          … 描画に渡す物 (コマンドリスト・シーンの定数)
 │   │   ├── RenderEntity.h         … 画面に描く物の基底クラス。 位置と、 Renderer から呼ばれる仮想関数 (IceComponent が継承)
@@ -51,8 +53,9 @@ Test/
 │   │   ├── DxCheck.h              … HRESULT の失敗を例外にする
 │   │   └── shaders/
 │   │       ├── SceneConstants.hlsli … シーンの定数の HLSL 側 (cbuffer SceneConstants : b0)
-│   │       ├── Environment.hlsli  … 空・床・表示用の変換 (氷のシェーダーも使う)
-│   │       └── Background.hlsl    … 背景の全画面シェーダー
+│   │       ├── Environment.hlsli  … 空・床 (氷のシェーダーも使う) と、 表示用の変換 ToDisplay (Display.hlsl だけが使う)
+│   │       ├── Background.hlsl    … 背景の全画面シェーダー
+│   │       └── Display.hlsl       … 表示用の色に直す全画面シェーダー (ToDisplay)
 │   └── ice/                       … 氷の部品 (ここだけ見ればよい)
 │       ├── IceComponent.h / .cpp  … 外から使う窓口。 RenderEntity を継承。 形とマテリアルのセッター・ゲッターだけ。 IceImplement を private に持つ
 │       ├── IceImplement.h / .cpp  … 描く仕組み。 initialize・draw3D・reloadShaders、 パイプライン、 mGeom
@@ -267,6 +270,8 @@ flowchart TD
 | `RenderEntity.h` | 画面に描く物の基底クラス。 位置 (`setPosition` / `getPosition`) と、 Renderer だけが呼ぶ private の仮想関数 (`initializeImplement` / `drawImplement` / `reloadImplement`)。 `IceComponent` が継承する |
 | `Material.h` | 面の質感の構造体 (`baseColor` は Float4、 `metallic` / `roughness` / `specular`) |
 | `BackgroundPass` | 空と床を全画面の三角形で描く |
+| `SceneColorBuffer` | シーンを光の強さのまま描く描画先 (`R16G16B16A16_FLOAT`)。 各シェーダーは `float4(色, α)` を返すだけ |
+| `DisplayPass` | フレームの最後に 1 回だけ、 シーンを `ToDisplay` (トーンマップとガンマ) でバックバッファへ写す |
 | `ShaderCompiler` | HLSL のファイルをコンパイルする (`D3DCompileFromFile`, SM 5.0) |
 | `MathTypes.h` | `Float3` / `Float4x4` と、 ビュー・射影・逆行列。 外部の数学ライブラリ (DirectXMath など) は使わない |
 | `DirectionalLight.h` | 平行光源 (太陽) の向き・色・強さ。 `Application` が持つ |
@@ -372,6 +377,7 @@ samples/
 | 7 部品 1 つ = 形 1 つ | `feature/glass-ice-one-per-entity` | 氷を部品ごとに描き、 コップも SDF の形にする。 段階の切り替えを外す。 全部の式の解説と出典 |
 | 8 toWorld を消す | `feature/glass-ice-no-to-world` | 変換の関数を消し、 頂点シェーダーで 1 回・ピクセルシェーダーの最初に逆行列で 1 回だけ変換する |
 | 9 段階のシェーダー | `feature/ice-shader-stages` | `IceShader0〜10.hlsl` を作る順に 1 段ずつ。 気泡と亀裂を足す |
+| 10 表示の変換を最後に 1 回 | `feature/display-pass` | シーンを HDR に描き、 `ToDisplay` を最後に 1 回だけ。 シェーダーは `float4(色, α)` を返す |
 
 各要素には `docs/` に解説を 1 つ付ける (必要なコードを載せ、 1 つずつ説明する)。
 エンジンの代わりの要素の解説は短く、 氷の部品の要素の解説を詳しくする。

@@ -102,7 +102,7 @@ float3 ShadeSurface(float3 n, float3 rd)
     return albedo * (SunColor() * sun + float3(0.22, 0.30, 0.42) * sky) + SunColor() * spec * sun;
 }
 
-// 画素の色 (表示用)
+// 画素の色 (光の強さのまま)
 float3 ShadeBaked(float2 ndc)
 {
     float3 ro, rd;
@@ -111,18 +111,18 @@ float3 ShadeBaked(float2 ndc)
 
     // 1. 光線が格子の箱を通らなければ背景
     float tNear, tFar;
-    if (!IntersectBox(ro, rd, tNear, tFar)) return ToDisplay(background);
+    if (!IntersectBox(ro, rd, tNear, tFar)) return background;
 
     // 2. 箱の中だけ球追跡する (カメラが箱の中なら、 カメラから)
     float t;
-    if (!SphereTrace(ro, rd, max(tNear, 0.0), tFar, t)) return ToDisplay(background);
+    if (!SphereTrace(ro, rd, max(tNear, 0.0), tFar, t)) return background;
 
     // 3. 当たった点の法線で光を当てる
     float3 p = ro + rd * t;
     float3 n = SdfNormal(p);
     float3 col = ShadeSurface(n, rd);
     if (ShowGrid != 0) col *= GridShade(p, n);
-    return ToDisplay(col);
+    return col;
 }
 
 float4 PSMain(VSOutput input) : SV_Target

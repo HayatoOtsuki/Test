@@ -9,7 +9,9 @@
 Renderer::Renderer(HWND hwnd, UINT width, UINT height, const std::wstring& shaderRoot)
     : mSwapChain(mDevice, hwnd, width, height)
     , mDepthBuffer(mDevice.getDevice(), width, height)
-    , mBackground(mDevice.getDevice(), SwapChain::kFormat, DepthBuffer::kFormat, shaderRoot + L"/Background.hlsl")
+    , mSceneColor(mDevice.getDevice(), width, height)
+    , mBackground(mDevice.getDevice(), SceneColorBuffer::kFormat, DepthBuffer::kFormat, shaderRoot + L"/Background.hlsl")
+    , mDisplay(mDevice.getDevice(), SwapChain::kFormat, shaderRoot + L"/Display.hlsl")
 {
     ID3D12Device* device = mDevice.getDevice();
 
@@ -27,6 +29,7 @@ Renderer::Renderer(HWND hwnd, UINT width, UINT height, const std::wstring& shade
 
     std::string error;
     if (!mBackground.build(error)) throw std::runtime_error("Background shader error:\n" + error);
+    if (!mDisplay.build(error)) throw std::runtime_error("Display shader error:\n" + error);
 }
 
 Renderer::~Renderer()
@@ -70,7 +73,7 @@ void Renderer::addEntity(RenderEntity* entity)
 {
     RenderSetup setup;
     setup.device = mDevice.getDevice();
-    setup.colorFormat = SwapChain::kFormat;
+    setup.colorFormat = SceneColorBuffer::kFormat;  // 描く物は全部、 シーンの描画先 (明るさのまま) へ描く
     setup.depthFormat = DepthBuffer::kFormat;
     entity->initializeImplement(setup);  // 失敗したら例外が出て、 登録されない
     mEntities.push_back(entity);
@@ -96,12 +99,12 @@ DrawContext Renderer::beginFrame(const OrbitCamera& camera, const DirectionalLig
     ThrowIfFailed(mAllocator->Reset(), "CommandAllocator::Reset");
     ThrowIfFailed(mCommandList->Reset(mAllocator.Get(), nullptr), "CommandList::Reset");
 
-    // 2. バックバッファを 「表示用 (PRESENT)」 から 「描画先 (RENDER_TARGET)」 の状態へ移す
-    transition(mSwapChain.getCurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    // 2. シーンの描画先を 「シェーダーから読む」 から 「描画先」 の状態へ移す (前のフレームの最後に読んだため)
+    transition(mSceneColor.getResource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    // 3. 描画先 (色と深度) をつなぎ、 深度を 1.0 (いちばん奥) でクリアする。
+    // 3. 描画先 (シーンの色と深度) をつなぎ、 深度を 1.0 (いちばん奥) でクリアする。
     //    色は背景がすべての画素を塗るのでクリアしない
-    const D3D12_CPU_DESCRIPTOR_HANDLE rtv = mSwapChain.getCurrentRtv();
+    const D3D12_CPU_DESCRIPTOR_HANDLE rtv = mSceneColor.getRtv();  // シーンは明るさのまま描く (表示用の変換は endFrame で 1 回だけ)
     const D3D12_CPU_DESCRIPTOR_HANDLE dsv = mDepthBuffer.getDsv();
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
     mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
@@ -141,11 +144,21 @@ DrawContext Renderer::beginFrame(const OrbitCamera& camera, const DirectionalLig
 
 void Renderer::endFrame()
 {
-    // 1. 描き終えたら 「表示用」 の状態へ戻し、 記録を閉じる
+    // 1. シーンを描き終えたので、 シーンの描画先を 「シェーダーから読む」 状態へ移す
+    transition(mSceneColor.getResource(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    // 2. バックバッファを描画先にして、 シーンを 1 回だけ表示用の色に直して写す (ToDisplay: トーンマップとガンマ)。
+    //    ビューポートとシザーは beginFrame で決めた物 (同じ大きさ) のまま
+    transition(mSwapChain.getCurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    const D3D12_CPU_DESCRIPTOR_HANDLE backBuffer = mSwapChain.getCurrentRtv();
+    mCommandList->OMSetRenderTargets(1, &backBuffer, FALSE, nullptr);
+    mDisplay.draw(mCommandList.Get(), mSceneColor.getSrvHeap(), mSceneColor.getSrv());
+
+    // 3. 描き終えたら 「表示用」 の状態へ戻し、 記録を閉じる
     transition(mSwapChain.getCurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     ThrowIfFailed(mCommandList->Close(), "CommandList::Close");
 
-    // 2. GPU へ送る → 表示に回す → GPU が終えるまで待つ
+    // 4. GPU へ送る → 表示に回す → GPU が終えるまで待つ
     mDevice.execute(mCommandList.Get());
     mSwapChain.present();
     mDevice.waitForGpu();
@@ -158,6 +171,7 @@ void Renderer::resize(UINT width, UINT height)
     mDevice.waitForGpu();
     mSwapChain.resize(width, height);
     mDepthBuffer.resize(width, height);
+    mSceneColor.resize(width, height);
 }
 
 bool Renderer::reloadShaders(std::string& error)
@@ -165,6 +179,7 @@ bool Renderer::reloadShaders(std::string& error)
     // 使っている途中の PSO を差し替えないよう、 GPU が終えるのを待つ
     mDevice.waitForGpu();
     if (!mBackground.build(error)) return false;
+    if (!mDisplay.build(error)) return false;
     for (RenderEntity* entity : mEntities) {
         if (!entity->reloadImplement(error)) return false;
     }
