@@ -86,7 +86,7 @@ float SunVisibility(float3 p)
     return exp(-opticalDepth);
 }
 
-// 画素の色 (表示用)
+// 画素の色 (光の強さのまま)
 float3 ShadeFog(float2 ndc)
 {
     float3 ro, rd;
@@ -94,7 +94,7 @@ float3 ShadeFog(float2 ndc)
     float3 background = Environment(ro, rd);
 
     float t0, t1;
-    if (!IntersectFogBall(ro, rd, t0, t1)) return ToDisplay(background);
+    if (!IntersectFogBall(ro, rd, t0, t1)) return background;
 
     // 一定の歩幅 dt で進む。 dt は 「玉の直径 ÷ 歩数」 なので、 歩数を増やすほど細かくなる。
     // 歩く位置は 「カメラからの距離が dt の倍数 + 半歩」 にそろえる。 歩数が少ないと、
@@ -122,7 +122,7 @@ float3 ShadeFog(float2 ndc)
         if (transmittance < 0.01) break;  // ほぼ何も通らないなら、 先を読んでも変わらない
     }
     // 霧の向こうの景色は、 遮られずに残った割合だけ見える
-    return ToDisplay(scattered + transmittance * background);
+    return scattered + transmittance * background;
 }
 
 float4 PSMain(VSOutput input) : SV_Target

@@ -24,6 +24,7 @@
 // 【今回足す物】
 //   ・頂点シェーダー: 箱の頂点を、 部品の空間 (LPos) → ワールド (WPos) → 画面 (Pos) と 1 回だけ変換する
 //   ・ピクセルシェーダー: 部品の空間の位置 v.LPos を、 そのまま色にする
+//   ・ピクセルシェーダーは float4(色, α) を返す (色は光の強さのまま。 表示用の変換はエンジンが最後に 1 回だけする)
 //
 // 【仕組み】
 //   SDF の形は、 メッシュではなく式なので、 「どの画素で計算するか」 を決めるために、 形を囲む箱を描く。
@@ -36,7 +37,7 @@
 //   ・コップの部品は段階 10 まで描かない (C++ の GlassIceSample)
 // =============================================================================
 
-#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment / ToDisplay)
+#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment)
 
 // 部品 1 つ分の定数。 C++ の SdfObject の ObjectConstants と同じ並び。 全部の段階で同じ (C++ は段階で変わらない)
 cbuffer ObjectConstants : register(b1)

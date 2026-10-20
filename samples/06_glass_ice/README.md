@@ -414,26 +414,27 @@ thr *= 1.0 - F;
 
 ```hlsl
 col += thr * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(rd, 0.0), world).xyz);
-return float4(ToDisplay(col), 1.0);
+return float4(col, 1.0);  // 色 (光の強さのまま) と α
 ```
 
-最後に出た向きの景色 (空と床) に、 残った割合 `thr` を掛けて足す。 `Environment` と `ToDisplay` はエンジンの代わりの部分 ([`src/engine/shaders/Environment.hlsli`](../../src/engine/shaders/Environment.hlsli))。 自分のエンジンでは、 キューブマップか、 不透明な物を描いた画面のコピーを、 この向きで読む所になる。
+最後に出た向きの景色 (空と床) に、 残った割合 `thr` を掛けて足し、 **`float4(色, α)` を返すだけ**。 `Environment` はエンジンの代わりの部分 ([`src/engine/shaders/Environment.hlsli`](../../src/engine/shaders/Environment.hlsli))。
+
+返す色は **光の強さのまま** (1 を超えてもよい)。 表示用の色への変換 (`ToDisplay`: トーンマップとガンマ) は、 エンジンがシーンを全部描き終えた後に 1 回だけする ([`Display.hlsl`](../../src/engine/shaders/Display.hlsl)、 [docs/01-dx12-base.md](../../docs/01-dx12-base.md))。 自分のエンジンでも、 後処理でこの変換をしているなら、 シェーダーは色をそのまま返せばよい。 自分のエンジンでは、 キューブマップか、 不透明な物を描いた画面のコピーを、 この向きで読む所になる。
 
 部品 1 つは自分の形しか知らないので、 氷を通して隣の氷は見えない (景色だけが見える)。 数個が触れ合っているくらいなら、 見た目の差は小さい。
 
 ### コップ: 後ろに描いた物に重ねる
 
 ```hlsl
-float a = 1.0 - (thr.r + thr.g + thr.b) / 3.0;  // 通らなかった割合
-float3 reflection = col / max(a, 1e-4);         // 映り込みの平均の色
-return float4(ToDisplay(reflection) * a, a);
+float alpha = 1.0 - (thr.r + thr.g + thr.b) / 3.0;  // 通らなかった割合
+return float4(col, alpha);                          // 色 = 映り込みの光、 α = 通らなかった割合
 ```
 
 コップの壁は薄いので、 通り抜けた光はほとんど曲がらない。 そこで、 通った光の景色は自分で計算せず、 **先に描いてある物 (氷・床) をそのまま使う**。 ブレンドは 「出した色 + 後ろの色 × (1 − α)」 (`SdfObject.cpp` の `options.blend`) なので、 出力は
 
-$$\text{結果} = \text{映り込み} \times a + \text{後ろの色} \times (1 - a)$$
+$$\text{結果} = \text{映り込み} + \text{後ろの色} \times \text{透過率} \qquad (\alpha = 1 - \text{透過率})$$
 
-になる。 画面の色は表示用 (`ToDisplay` の後) なので、 映り込みを足すのではなく、 割合 $a$ で混ぜている (足すと明るくなりすぎる)。 だからコップは最後に描く。 氷は α = 1 なので、 同じブレンドでも上書きになる。
+になる。 シーンは光の強さのまま描いているので、 これは 「映り込みの光 + 通り抜けてきた光」 という光の足し算そのもの。 後ろに描いてある物を使うので、 コップは最後に描く。 氷は α = 1 なので、 同じブレンドでも上書きになる。
 
 ### 影
 
@@ -541,10 +542,10 @@ depth = clip.z / clip.w;  // SV_Depth
 | 全反射 4 回で打ち切り、 残りを景色で近似 | 重さを決めて止める | **このサンプルの近似** |
 | `EPS = 0.001` (表面から少し離す) | 曲がった直後に、 同じ表面にまた当たらないように | レイトレーシングでよく使う決まった手 (自分自身に当たる誤差を避ける)。 値は **このサンプルで決めた** (コップの壁の厚さの半分 6 mm より小さく) |
 | 同じ形にまた入る (2 回まで) | コップの手前の壁 → 奥の壁 | **このサンプルで決めた作り** |
-| コップ: `lerp(後ろの色, 映り込み, a)` | 薄い物を後ろの絵に重ねる | **このサンプルの近似** (壁が薄いので曲がりを無視する)。 ブレンドの式は D3D12 のブレンドの設定 (§11) |
+| コップ: `float4(映り込み, 1 − 透過率)` とブレンド | 薄い物を後ろの絵に重ねる (映り込み + 後ろ × 透過率) | **このサンプルの近似** (壁が薄いので曲がりを無視する)。 ブレンドの式は D3D12 のブレンドの設定 (§11) |
 | `discard` | 形に当たらない画素を描かない | HLSL の命令 ([Microsoft](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/discard--sm4---asm-)) |
 | `SV_Depth` | 当たった点の深度を書く | HLSL のセマンティクス ([Microsoft](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics)) |
-| `Environment` / `ToDisplay` | 景色 (空・床) / 表示用の色にする | このリポジトリのエンジンの代わり ([docs/02-environment.md](../../docs/02-environment.md))。 `ToDisplay` のトーンマップは Narkowicz 2016 の ACES の近似 ([記事](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/)、 記事のコードは CC0 または MIT) |
+| `Environment` / `ToDisplay` | 景色 (空・床) / 表示用の色にする (エンジンが最後に 1 回だけ。 シェーダーは呼ばない) | このリポジトリのエンジンの代わり ([docs/02-environment.md](../../docs/02-environment.md))。 `ToDisplay` のトーンマップは Narkowicz 2016 の ACES の近似 ([記事](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/)、 記事のコードは CC0 または MIT) |
 
 ### C++ (SdfObject.cpp)
 

@@ -40,7 +40,7 @@
 
 | 文献 | 正規の入手先 | 使った所 | 利用条件 | 読む・式を使う | コードを写して商用 |
 | --- | --- | --- | --- | --- | --- |
-| Krzysztof Narkowicz, "ACES Filmic Tone Mapping Curve", 2016 | [著者のブログ](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/) | トーンマップの近似式 (`ToDisplay`) | 記事の中のコードは CC0 または MIT で自由に使えると明記 | 可 | 可 |
+| Krzysztof Narkowicz, "ACES Filmic Tone Mapping Curve", 2016 | [著者のブログ](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/) | トーンマップの近似式 (`ToDisplay`。 エンジンが最後に 1 回だけ使う、 `Display.hlsl`) | 記事の中のコードは CC0 または MIT で自由に使えると明記 | 可 | 可 |
 
 > この式は ACES の近似で、 ACES そのものではない。 発表などでは 「ACES 準拠」 ではなく **「ACES の近似 (Narkowicz 2016)」** と書く。
 

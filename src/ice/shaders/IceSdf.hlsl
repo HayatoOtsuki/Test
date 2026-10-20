@@ -90,7 +90,7 @@ float MarchInside(float3 ro, float3 rd, inout float3 col, inout float3 thr)
     return t;
 }
 
-// この画素の色 (表示用)。 氷に当たらなければ false を返す
+// この画素の色 (光の強さのまま)。 氷に当たらなければ false を返す
 bool ShadeIceSdf(float3 worldPos, out float3 color)
 {
     color = float3(0.0, 0.0, 0.0);
@@ -164,7 +164,7 @@ bool ShadeIceSdf(float3 worldPos, out float3 color)
     // 捨てると、 その画素だけ黒い点になる。 本当の光も、 何度か跳ね返った後でいずれ外へ出る
     if (inside) col += thr * Environment(p + Position, rd);
 
-    color = ToDisplay(col);
+    color = col;  // 光の強さのまま (表示用の変換は最後に 1 回だけ)
     return true;
 }
 
