@@ -121,8 +121,13 @@ void SdfObject::initializeImplement(const RenderSetup& setup)
     mDevice = setup.device;
     mSetup = setup;
 
-    // ルート引数: 0 = b0 エンジンのシーンの定数 (ViewProj・太陽)、 1 = b1 この部品の定数
-    D3D12_ROOT_PARAMETER params[2] = {};
+    // ルート引数: 0 = b0 エンジンのシーンの定数 (ViewProj・太陽)、 1 = b1 この部品の定数、
+    //            2 = t0 環境マップ (キューブマップ) + 静的サンプラー s0 (線形補間)
+    D3D12_DESCRIPTOR_RANGE range = {};
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    range.NumDescriptors = 1;
+    range.BaseShaderRegister = 0;  // t0
+    D3D12_ROOT_PARAMETER params[3] = {};
     params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     params[0].Descriptor.ShaderRegister = 0;
     params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -130,9 +135,16 @@ void SdfObject::initializeImplement(const RenderSetup& setup)
     params[1].Constants.ShaderRegister = 1;
     params[1].Constants.Num32BitValues = sizeof(ObjectConstants) / 4;
     params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[2].DescriptorTable.NumDescriptorRanges = 1;
+    params[2].DescriptorTable.pDescriptorRanges = &range;
+    params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    const D3D12_STATIC_SAMPLER_DESC sampler = gpu::linearClampSampler();
     D3D12_ROOT_SIGNATURE_DESC desc = {};
-    desc.NumParameters = 2;
+    desc.NumParameters = 3;
     desc.pParameters = params;
+    desc.NumStaticSamplers = 1;
+    desc.pStaticSamplers = &sampler;
     desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;  // 頂点バッファを使う
     mRootSignature = gpu::createRootSignature(mDevice, desc);
 
@@ -194,6 +206,11 @@ void SdfObject::drawImplement(const DrawContext& context)
     commandList->SetPipelineState(mPipeline.Get());
     commandList->SetGraphicsRootConstantBufferView(0, context.sceneConstants);
     commandList->SetGraphicsRoot32BitConstants(1, sizeof(ObjectConstants) / 4, &constants, 0);
+    if (mEnvironment) {
+        ID3D12DescriptorHeap* heaps[] = { mEnvironment->getHeap() };
+        commandList->SetDescriptorHeaps(1, heaps);
+        commandList->SetGraphicsRootDescriptorTable(2, mEnvironment->getSrv());
+    }
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->IASetVertexBuffers(0, 1, &mVertexView);
     commandList->IASetIndexBuffer(&mIndexView);

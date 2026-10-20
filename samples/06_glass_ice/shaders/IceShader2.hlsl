@@ -27,7 +27,8 @@
 // 【仕組み】
 //   法線: SDF は表面から離れる向きにいちばん速く増える。 その向き (勾配) が外向きの法線。
 //     各軸で少し前と少し後ろの SDF の差を取る (中心差分)。 長さは normalize でそろえる。
-//   ランバート: 面の明るさ = cosθ = n·L (n: 法線、 L: 太陽の向き)。 太陽はワールドの向きなので、 法線をワールドへ直してから比べる。
+//   ランバート: 面の明るさ = cosθ = n·L (n: 法線、 L: 太陽への向き)。 太陽はワールドの向きなので、 法線をワールドへ直してから比べる。
+//     太陽の向きと色は、 シーンの定数バッファの LightDirection / LightColor を直接読む (自分のエンジンのライトの定数に当たる)。
 //     向きの変換は w = 0 (移動の部分を効かせない)。
 //   透明にする前に、 法線が正しいかを不透明で確かめておく段。 後の段は全部この法線を使う。
 //
@@ -39,7 +40,7 @@
 //   Inigo Quilez "normals for an SDF"  https://iquilezles.org/articles/normalsSDF
 // =============================================================================
 
-#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment)
+#include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
 
 // 部品 1 つ分の定数。 C++ の SdfObject の ObjectConstants と同じ並び。 全部の段階で同じ (C++ は段階で変わらない)
 cbuffer ObjectConstants : register(b1)
@@ -145,8 +146,8 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
     // ★ 段階 2: 法線で光を当てる (ランバートの余弦則)。 不透明な形として見る
     float3 n = calcNormal(p);                                                 // 法線 (部品の空間)
     float3 nw = normalize(mul(float4(n, 0.0), world).xyz);                    // 法線をワールドへ (太陽の向きはワールド。 向きなので w = 0)
-    float diffuse = saturate(dot(nw, SunDirection()));                        // ランバート: 明るさ = cosθ = n·L (裏は 0)
+    float diffuse = saturate(dot(nw, LightDirection));                        // ランバート: 明るさ = cosθ = n·L (裏は 0。 L は太陽への向き)
     float3 albedo = float3(0.8, 0.85, 0.9);                                   // 形の色 (確かめる用の明るい灰色)
-    float3 lit = albedo * (SunColor() * diffuse + float3(0.22, 0.30, 0.42));  // 太陽の光 + 空からの弱い光
+    float3 lit = albedo * (LightColor * diffuse + float3(0.22, 0.30, 0.42));  // 太陽の光 (色 × 強さ) + 空からの弱い光
     return float4(lit, 1.0);                                                  // 色 (光の強さのまま) と α (1 = 上書き)
 }

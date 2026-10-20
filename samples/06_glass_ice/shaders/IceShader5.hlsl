@@ -40,7 +40,7 @@
 //   PBR Book "Specular Reflection and Transmission" (全反射)  https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission
 // =============================================================================
 
-#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment)
+#include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
 
 // 部品 1 つ分の定数。 C++ の SdfObject の ObjectConstants と同じ並び。 全部の段階で同じ (C++ は段階で変わらない)
 cbuffer ObjectConstants : register(b1)
@@ -56,6 +56,9 @@ cbuffer ObjectConstants : register(b1)
     float2   objectPad;    // 16 バイトにそろえるための詰め物 (使わない)
 };
 
+// 環境マップ (周りの景色のキューブマップ)。 向きを渡すと、 その向きの景色の色 (光の強さ) が返る。 段階 3 から使う
+TextureCube<float4> envMap : register(t0);
+SamplerState envSampler : register(s0);  // 線形補間 (C++ の静的サンプラー)
 static const float ICE_HALF = 0.13;           // 氷の半分の大きさ (m)。 1 辺 26 cm (場面は本物の約 8 倍)
 static const float ICE_ROUND = 0.035;         // 氷の角の丸みの半径 (m)
 static const float HIT_EPS = 0.0002;          // 表面まで、 これより近ければ 「当たった」 (m)。 0.2 mm
@@ -178,7 +181,7 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
 
         // 2. 表面: 映り込みを足し、 残りは屈折して中へ
         float F = fresnelSchlick(dot(-rd, n));                                // 映り込む割合 (フレネル)
-        col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);  // 反射の向き r = d − 2(d·n)n の景色
+        col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;  // 反射の向き r = d − 2(d·n)n の景色
         thr *= 1.0 - F;                                                       // 残りの割合が中へ入る
         rd = refract(rd, n, 1.0 / ior);                                       // ★ 段階 4: 屈折。 スネルの法則 (空気 → 中。 屈折率の比 1 / n)
         p -= n * EPS;                                                         // 少し中へ入れてから進む
@@ -197,7 +200,7 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
             }
             F = fresnelSchlick(dot(outDir, n));                               // 出口で映り込む割合
             // ★ 段階 5: 後ろの面の映り込み。 中へ跳ね返る分 F を、 跳ね返った向きの景色で近似して足す
-            col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);
+            col += thr * F * envMap.SampleLevel(envSampler, mul(float4(reflect(rd, n), 0.0), world).xyz, 0).rgb;
             thr *= 1.0 - F;                                                   // 残りは外へ
             rd = outDir;                                                      // 曲がって外へ
             p += n * EPS;                                                     // 少し外へ出す
@@ -212,6 +215,6 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
     }
 
     // 6. 景色
-    col += thr * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(rd, 0.0), world).xyz);  // 出た向きの空と床に、 残った割合を掛けて足す
+    col += thr * envMap.SampleLevel(envSampler, mul(float4(rd, 0.0), world).xyz, 0).rgb;  // 出た向きの空と床に、 残った割合を掛けて足す
     return float4(col, 1.0);                                                  // 色 (光の強さのまま) と α (1 = 上書き)
 }

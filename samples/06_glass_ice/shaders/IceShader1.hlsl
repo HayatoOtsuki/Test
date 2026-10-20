@@ -40,7 +40,7 @@
 //   Inigo Quilez "raymarching SDFs" (球追跡)       https://iquilezles.org/articles/raymarchingdf
 // =============================================================================
 
-#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment)
+#include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
 
 // 部品 1 つ分の定数。 C++ の SdfObject の ObjectConstants と同じ並び。 全部の段階で同じ (C++ は段階で変わらない)
 cbuffer ObjectConstants : register(b1)
