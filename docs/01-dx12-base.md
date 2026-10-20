@@ -143,13 +143,26 @@ output.position = float4(output.ndc, 0.0, 1.0);
 ```hlsl
 float4 farPoint = mul(float4(ndc, 1.0, 1.0), InvViewProj);
 float3 rd = normalize(farPoint.xyz / farPoint.w - CameraPos);
-return ToDisplay(Environment(CameraPos, rd));
+return Environment(CameraPos, rd);  // 光の強さのまま
 ```
 
 1. 画素を奥の面 (クリップ空間の z = 1) まで延ばした点を、 ビュー × 射影の **逆行列** でワールドへ戻す。
 2. `w` で割って実際の位置にする (透視投影で掛かった `w` を外す)。
 3. カメラからその点への向きが、 その画素を通る光線。
-4. 光線の先の色 (`Environment`) をトーンマップとガンマで画面の色にする。
+4. 光線の先の色 (`Environment`) を、 光の強さのまま描く。
+
+### 表示用の色に直すのは最後に 1 回だけ
+
+背景も氷も、 まず **シーンの描画先** (`SceneColorBuffer`、 `R16G16B16A16_FLOAT`) に光の強さのまま描く。 1 を超える明るさ (太陽など) もそのまま入る。
+全部描き終えたら、 `DisplayPass` がシーンの描画先を全画面の三角形で読み、 `ToDisplay` (トーンマップとガンマ) で表示用の色にしてバックバッファへ写す ([`Display.hlsl`](../src/engine/shaders/Display.hlsl))。
+
+| 順 | 描画先 | 何をするか |
+| --- | --- | --- |
+| 1 | シーンの描画先 (HDR) | 背景、 登録された物 (氷など)。 どのシェーダーも `float4(色, α)` を光の強さのまま返す |
+| 2 | バックバッファ | `ToDisplay` を 1 回だけかけて写す |
+
+こうすると、 各シェーダーは表示用の変換を気にしなくてよい。 半透明を重ねるブレンドも、 光の強さのまま (光の足し算として正しく) 行われる。
+シーンの描画先は、 描く前に 「描画先」 の状態へ、 描いた後に 「シェーダーから読む」 状態へ移す (リソースバリア)。
 
 `Environment` は `Environment.hlsli` にあり、 **氷のシェーダーも同じ関数を使う**。 屈折した光線の先に見える景色と、 周りに描いた背景が同じ式なので、 氷越しの景色が周りとつながる。
 

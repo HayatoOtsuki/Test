@@ -76,7 +76,7 @@ float3 IceShadowTransmittance(float3 worldP)
     return exp(-Absorption * insideLength - bubbleDepth) * 0.9;
 }
 
-// 床の点の色 (表示用)。 影が無い所は false (描かない = 背景のまま)
+// 床の点の色 (光の強さのまま)。 影が無い所は false (描かない = 背景のまま)
 bool ShadeShadowedFloor(float3 worldPos, out float3 color)
 {
     color = float3(0.0, 0.0, 0.0);
@@ -88,7 +88,7 @@ bool ShadeShadowedFloor(float3 worldPos, out float3 color)
     // 背景 (Environment) と同じ式で床を描き直す。 違うのは太陽の光に T を掛けることだけ (空からの光はそのまま)
     float3 toPoint = worldPos - CameraPos;
     float dist = length(toPoint);
-    color = ToDisplay(ApplyFog(ShadeFloorLit(worldPos, T), toPoint / dist, dist));
+    color = ApplyFog(ShadeFloorLit(worldPos, T), toPoint / dist, dist);  // 光の強さのまま
     return true;
 }
 

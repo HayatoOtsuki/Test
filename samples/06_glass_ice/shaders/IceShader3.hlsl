@@ -40,7 +40,7 @@
 //   LearnOpenGL "Cubemaps" (Reflection)          https://learnopengl.com/Advanced-OpenGL/Cubemaps
 // =============================================================================
 
-#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment / ToDisplay)
+#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment)
 
 // 部品 1 つ分の定数。 C++ の SdfObject の ObjectConstants と同じ並び。 全部の段階で同じ (C++ は段階で変わらない)
 cbuffer ObjectConstants : register(b1)
@@ -162,5 +162,5 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
     col += thr * F * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(reflect(rd, n), 0.0), world).xyz);  // 反射の向き r = d − 2(d·n)n の景色
     thr *= 1.0 - F;                                                           // 残りの割合が通り抜ける
     col += thr * Environment(mul(float4(p, 1.0), world).xyz, mul(float4(rd, 0.0), world).xyz);  // まっすぐ透かした景色 (屈折なし)
-    return float4(ToDisplay(col), 1.0);
+    return float4(col, 1.0);                                                  // 色 (光の強さのまま) と α (1 = 上書き)
 }

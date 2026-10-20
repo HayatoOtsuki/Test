@@ -39,7 +39,7 @@
 //   Inigo Quilez "normals for an SDF"  https://iquilezles.org/articles/normalsSDF
 // =============================================================================
 
-#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment / ToDisplay)
+#include "../../../src/engine/shaders/Environment.hlsli"  // シーンの定数 (ViewProj・太陽の向きと色) と景色 (Environment)
 
 // 部品 1 つ分の定数。 C++ の SdfObject の ObjectConstants と同じ並び。 全部の段階で同じ (C++ は段階で変わらない)
 cbuffer ObjectConstants : register(b1)
@@ -148,5 +148,5 @@ float4 PSMain(PSInput v, out float depth : SV_Depth) : SV_Target
     float diffuse = saturate(dot(nw, SunDirection()));                        // ランバート: 明るさ = cosθ = n·L (裏は 0)
     float3 albedo = float3(0.8, 0.85, 0.9);                                   // 形の色 (確かめる用の明るい灰色)
     float3 lit = albedo * (SunColor() * diffuse + float3(0.22, 0.30, 0.42));  // 太陽の光 + 空からの弱い光
-    return float4(ToDisplay(lit), 1.0);                                       // 表示用の色に (トーンマップとガンマ)
+    return float4(lit, 1.0);                                                  // 色 (光の強さのまま) と α (1 = 上書き)
 }

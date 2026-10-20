@@ -104,7 +104,7 @@ $$
 float3 T = IceShadowTransmittance(worldPos);
 if (min(T.x, min(T.y, T.z)) >= 0.999) return false;   // 影が無い所は描かない
 ...
-color = ToDisplay(ApplyFog(ShadeFloorLit(worldPos, T), toPoint / dist, dist));
+color = ApplyFog(ShadeFloorLit(worldPos, T), toPoint / dist, dist);  // 光の強さのまま (表示用の変換はエンジンが最後に 1 回だけ)
 ```
 
 エンジンの `Environment.hlsli` に、 太陽の届く割合を受け取る版を足した。

@@ -106,7 +106,7 @@ float3 ShadeSurface(float3 p, float3 n, float3 rd)
     return albedo * (SunColor() * sun + float3(0.22, 0.30, 0.42) * sky) + SunColor() * spec * sun;
 }
 
-// 画素の色 (表示用)
+// 画素の色 (光の強さのまま)
 float3 ShadeSdfScene(float2 ndc)
 {
     float3 ro, rd;
@@ -120,21 +120,21 @@ float3 ShadeSdfScene(float2 ndc)
     int steps;
     bool hit = SphereTrace(ro, rd, min(tFloor, FAR_DIST), t, steps);
 
-    if (ViewMode == 1) return HeatColor(float(steps) / 64.0);  // 64 歩で赤
+    if (ViewMode == 1) return FromDisplay(HeatColor(float(steps) / 64.0));  // 64 歩で赤 (デバッグの色は戻して出す)
     if (hit) {
         float3 p = ro + rd * t;
         float3 n = SdfNormal(p);
-        if (ViewMode == 2) return n * 0.5 + 0.5;
-        return ToDisplay(ShadeSurface(p, n, rd));
+        if (ViewMode == 2) return FromDisplay(n * 0.5 + 0.5);
+        return ShadeSurface(p, n, rd);
     }
     if (ViewMode == 2) return float3(0.0, 0.0, 0.0);
-    if (!floorHit) return ToDisplay(Sky(rd));
+    if (!floorHit) return Sky(rd);
 
     // 床: 太陽への球追跡で、 形の影を落とす
     float3 pf = ro + rd * tFloor;
     float sunVisibility = SunVisibility(pf);
     float3 floorColor = ShadeFloorLit(pf, float3(sunVisibility, sunVisibility, sunVisibility));
-    return ToDisplay(ApplyFog(floorColor, rd, tFloor));
+    return ApplyFog(floorColor, rd, tFloor);
 }
 
 float4 PSMain(VSOutput input) : SV_Target
