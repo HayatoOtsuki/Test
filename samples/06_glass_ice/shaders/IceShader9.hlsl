@@ -41,6 +41,10 @@
 // 【参考】
 //   Inigo Quilez "intersectors" (光線と平面の交点)  https://iquilezles.org/articles/intersectors
 //   Wikipedia "Total internal reflection"  https://en.wikipedia.org/wiki/Total_internal_reflection
+//
+// 【コードの引用元】
+//   光線と平面の交点 t = (c − p)·n / (d·n): iq "intersectors" の式と同じ形
+//   円盤・ぎざぎざ・2F・CRACK_WHITE: 自分で書いた (このサンプルで決めた)
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

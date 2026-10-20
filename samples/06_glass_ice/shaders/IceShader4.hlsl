@@ -46,6 +46,12 @@
 // 【参考】
 //   LearnOpenGL "Cubemaps" (Refraction)  https://learnopengl.com/Advanced-OpenGL/Cubemaps
 //   PBR Book "Specular Reflection and Transmission" (スネルの法則)  https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission
+//   Wikipedia "Bisection method" (2 分探索: 符号の違う 2 点の真ん中を調べて、 区間を半分ずつ狭める)  https://en.wikipedia.org/wiki/Bisection_method
+//
+// 【コードの引用元】
+//   refract / reflect: HLSL の組み込み関数
+//   rayMarchInside (外へ出るまで進み、 2 分探索で詰める): 自分で書いた。 2 分探索は教科書どおりの形 (Wikipedia "Bisection method")。
+//     2 mm〜2 cm・6 回は、 このサンプルで決めた値
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

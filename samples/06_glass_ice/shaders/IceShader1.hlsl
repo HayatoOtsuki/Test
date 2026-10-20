@@ -41,6 +41,12 @@
 // 【参考】
 //   Inigo Quilez "distance functions" (Round Box)  https://iquilezles.org/articles/distfunctions
 //   Inigo Quilez "raymarching SDFs" (球追跡)       https://iquilezles.org/articles/raymarchingdf
+//
+// 【コードの引用元】
+//   sdRoundBox: 式は Inigo Quilez "distance functions" の角の丸い箱と同じ形 (1 行の式なので、 誰が書いても同じになる)。
+//     記事のコード片は MIT。 変数名とコメントは自分で付けた
+//   rayMarch: 球追跡の考え方 (Hart 1996・iq "raymarching SDFs") から自分で書いた。 0.9 倍・0.2 mm・128 歩は、 このサンプルで決めた値
+//   SV_Depth / discard の使い方: Microsoft の説明から
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

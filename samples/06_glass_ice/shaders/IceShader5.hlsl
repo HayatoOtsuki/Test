@@ -41,6 +41,10 @@
 // 【参考】
 //   Microsoft "refract" (全反射で (0, 0, 0))  https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-refract
 //   PBR Book "Specular Reflection and Transmission" (全反射)  https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission
+//
+// 【コードの引用元】
+//   全反射の判定 (refract の長さが 0): Microsoft の refract の説明 (全反射で (0, 0, 0) を返す) から
+//   8 回のループ・後ろの面の近似: 自分で書いた (このサンプルで決めた近似)
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

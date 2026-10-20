@@ -45,7 +45,8 @@
 //   ・環境マップは、 氷のあたり (0, 0.4, 0) から見た景色 (床の模様は、 その点から見た物。 氷の場所ごとの違いは無視)
 //   ・形の大きさ・でこぼこ・吸収・芯・気泡・亀裂の値は、 見た目で決めた
 //
-// 【参考文献】 (どれも式と考え方を確かめるために読んだ。 コードは写していない。 利用条件は docs/guide/references.md)
+// 【参考文献】 (どれも式と考え方を確かめるために読んだ。 コードは自分で書いた。 1 行の式は文献と同じ形になる所がある (各段の 【コードの引用元】)。
+//   利用条件は docs/guide/references.md、 段階ごとの解説は samples/06_glass_ice/STAGES.md)
 //   ・SDF の形 (角の丸い箱): Inigo Quilez "distance functions"
 //       https://iquilezles.org/articles/distfunctions  (記事のコード片は MIT ライセンス)
 //   ・SDF の法線 (中心差分): Inigo Quilez "normals for an SDF"  https://iquilezles.org/articles/normalsSDF
@@ -66,6 +67,13 @@
 //       https://pbr-book.org/4ed/Volume_Scattering/Transmittance
 //       https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes
 //   ・位相関数 (Henyey-Greenstein): PBR Book 第 4 版  https://pbr-book.org/4ed/Volume_Scattering/Phase_Functions
+//   ・出口の 2 分探索: Wikipedia "Bisection method"  https://en.wikipedia.org/wiki/Bisection_method
+//   ・画素ごとのずらし (jitter): F. Toft ほか, "Optimisations for Real-Time Volumetric Cloudscapes", 2016  https://arxiv.org/abs/1609.05344
+//   ・画面空間の屈折 (画面をテクスチャにして、 ずらした位置で読む): T. Sousa, GPU Gems 2 第 19 章, 2005
+//       https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-19-generic-refraction-simulation
+//   ・画面のコピー (CopyResource とリソースの状態の切り替え): Microsoft の D3D12 の説明
+//       https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12graphicscommandlist-copyresource
+//       https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-resource-barriers-to-synchronize-resource-states-in-direct3d-12
 //   ・全反射 (密な物 → 疎な物): Wikipedia "Total internal reflection"  https://en.wikipedia.org/wiki/Total_internal_reflection
 //   ・冷凍庫の氷が白く濁る理由: Wikipedia "Ice cube" の Clear and cloudy  https://en.wikipedia.org/wiki/Ice_cube
 //   ・氷の屈折率 1.31: S. G. Warren, R. E. Brandt, J. Geophys. Res. 113, 2008  https://doi.org/10.1029/2007JD009744
@@ -111,6 +119,20 @@
 // 【確かめること】
 //   ・氷を通した床の模様が、 氷の後ろの本当の床とつながって見える (段階 12 は、 環境マップの床なので少しずれていた)
 //   ・画面の端に寄せると、 画面の外を読む所だけ空のグラデーションに切り替わる
+//
+// 【参考】
+//   T. Sousa, "Generic Refraction Simulation", GPU Gems 2 第 19 章, 2005
+//     (場面をテクスチャに描き、 ずらした位置で読んで屈折に見せる)
+//     https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-19-generic-refraction-simulation
+//   Microsoft "CopyResource" (画面のコピー)  https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12graphicscommandlist-copyresource
+//   Microsoft "Using Resource Barriers" (コピーの前後で、 リソースの状態を切り替える)
+//     https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-resource-barriers-to-synchronize-resource-states-in-direct3d-12
+//
+// 【コードの引用元】
+//   sceneBehind: GPU Gems 2 第 19 章の考え方 (画面をテクスチャにして、 ずらした位置で読む) から自分で書いた。
+//     あの章のコード (© NVIDIA、 転載不可) は写していない。 「奥へ 0.4 m 進めた点を画面に写す」 ずらし方は、 このサンプルで決めた
+//   skyColor: 自分で書いた (色は見た目で決めた)
+//   画面のコピー (Renderer.cpp): Microsoft の CopyResource とリソースバリアの説明から自分で書いた
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
