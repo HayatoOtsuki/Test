@@ -60,6 +60,19 @@
 | Wikipedia "Total internal reflection" | [en.wikipedia.org/wiki/Total_internal_reflection](https://en.wikipedia.org/wiki/Total_internal_reflection) | 全反射は密な物 → 疎な物でだけ起きる (気泡・亀裂の縁が光る理由、 06 §9) | 本文 CC BY-SA 4.0 | 可 | 文章を写すなら同じ条件での公開が要る (写していない) |
 | Wikipedia "Ice cube" の Clear and cloudy | [en.wikipedia.org/wiki/Ice_cube](https://en.wikipedia.org/wiki/Ice_cube) | 冷凍庫の氷が白く濁る理由 (06 §9) | 本文 CC BY-SA 4.0 | 可 | 文章を写すなら同じ条件での公開が要る (写していない) |
 
+### 段階 10〜13 で足した物 (サンプル 06、 確認日 2026-10-21)
+
+段階ごとの解説書 [samples/06_glass_ice/STAGES.md](../../samples/06_glass_ice/STAGES.md) の [19]〜[26]。 どれも **読んで考え方を使うだけ** で、 コードは写していない。
+
+| 文献 | 正規の入手先 | 使った所 | 利用条件 | 読む・式を使う | コードを写して商用 |
+| --- | --- | --- | --- | --- | --- |
+| Wikipedia "Bisection method" | [en.wikipedia.org/wiki/Bisection_method](https://en.wikipedia.org/wiki/Bisection_method) | 出口の 2 分探索 (段階 4) | 本文 CC BY-SA 4.0 | 可 | 文章を写すなら同じ条件での公開が要る (写していない) |
+| Fredrik Toft, Jesper Bowles, David Zimmermann, "Optimisations for Real-Time Volumetric Cloudscapes", 2016 | [arXiv:1609.05344](https://arxiv.org/abs/1609.05344) | レイマーチの開始位置を画素ごとにでたらめにずらす (段階 10 の jitter) | arXiv への非独占の配布許諾 (論文の著作権は著者)。 論文のページで確認 | 可 | 対象なし (論文の本文・図の転載は不可) |
+| Tiago Sousa (Crytek), "Generic Refraction Simulation", GPU Gems 2 第 19 章, 2005 | [NVIDIA Developer の公式の公開ページ](https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-19-generic-refraction-simulation) | 場面をテクスチャに描き、 ずらした位置で読んで屈折に見せる (段階 13 の sceneBehind) | ページに © 2005 NVIDIA Corporation, All rights reserved | 可 | **不可** (章のシェーダーのコードは写さない) |
+| Microsoft Learn: `ID3D12GraphicsCommandList::CopyResource`・"Using Resource Barriers to Synchronize Resource States in Direct3D 12" | [CopyResource](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12graphicscommandlist-copyresource)・[resource barriers](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-resource-barriers-to-synchronize-resource-states-in-direct3d-12) | 画面のコピーと、 前後の状態の切り替え (段階 13、 `Renderer.cpp`) | 下の 「DirectX 12」 の Microsoft Learn と同じ | 可 | 下と同じ |
+
+> 調べたが使わなかった物: 作者の名前と利用条件が書かれていないブログの記事 (体積の散乱の解説) は、 出典にしなかった。
+
 ### DirectX 12
 
 | 文献 | 正規の入手先 | 使った所 | 利用条件 | 読む | コードを写して商用 |

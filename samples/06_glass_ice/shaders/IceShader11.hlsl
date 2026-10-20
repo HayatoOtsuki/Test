@@ -39,6 +39,10 @@
 //
 // 【参考】
 //   PBR Book "Volume Scattering Processes"  https://pbr-book.org/4ed/Volume_Scattering/Volume_Scattering_Processes
+//   PBR Book "Transmittance" (光学的な厚さ τ と、 透過率 exp(−τ))  https://pbr-book.org/4ed/Volume_Scattering/Transmittance
+//
+// 【コードの引用元】
+//   散乱の影 (太陽の方へ 4 歩): 自分で書いた。 exp(−τ) は PBR Book の透過率の式。 4 歩・2 cm は、 このサンプルで決めた
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

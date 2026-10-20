@@ -40,6 +40,9 @@
 //
 // 【参考】
 //   PBR Book "Phase Functions" (Henyey-Greenstein の位相関数)  https://pbr-book.org/4ed/Volume_Scattering/Phase_Functions
+//
+// 【コードの引用元】
+//   phaseHG: PBR Book の Henyey-Greenstein の式から、 1 / (4π) を省いた形を自分で書いた (偏りが無いとき 1 になるように)
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)

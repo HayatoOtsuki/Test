@@ -41,6 +41,10 @@
 //
 // 【参考】
 //   Inigo Quilez "normals for an SDF"  https://iquilezles.org/articles/normalsSDF
+//
+// 【コードの引用元】
+//   calcNormal: iq "normals for an SDF" の中心差分と同じ形 (e.xyy のような書き方も記事の流儀)。 ずらす幅 0.5 mm は、 このサンプルで決めた
+//   ランバート (n·L) と空の光: 自分で書いた。 色の値は確かめる用に決めた
 // =============================================================================
 
 #include "../../../src/engine/shaders/SceneConstants.hlsli"  // シーンの定数 (ViewProj・LightDirection・LightColor)
